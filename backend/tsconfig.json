@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "nodenext",
+    "types": ["node"],
+    "outDir": "dist",
+    "strict": true
+  }
+}
