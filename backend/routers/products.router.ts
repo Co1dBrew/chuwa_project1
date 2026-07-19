@@ -41,14 +41,25 @@ router.get("/:productId", async (req, res) => {
   }
 });
 
-const ProductInput = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  sku: z.string().min(1),
-  category_id: z.number().int(),
-  price_amount: z.number().int(),
-  inventory: z.number().int().optional(),
-  image_url: z.string().optional(),
+const optionalString = z.preprocess(
+  (value) =>
+    typeof value === "string" && value.trim() === "" ? undefined : value,
+  z.string().trim().optional(),
+);
+
+const optionalUrl = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.string().trim().pipe(z.url()).optional(),
+);
+
+export const ProductInput = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: optionalString,
+  sku: z.string().trim().min(1).max(100),
+  category_id: z.number().int().positive(),
+  price_amount: z.number().int().nonnegative(),
+  inventory: z.number().int().nonnegative().optional(),
+  image_url: optionalUrl,
   meta: z.record(z.string(), z.unknown()).optional(),
 });
 

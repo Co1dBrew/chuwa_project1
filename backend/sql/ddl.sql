@@ -1,10 +1,14 @@
 CREATE TABLE users (
     user_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
+    username VARCHAR(20) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    nickname VARCHAR(100),
-    avatar_url TEXT
+    nickname VARCHAR(30),
+    avatar_url TEXT,
+    CONSTRAINT users_username_format_check CHECK (username ~ '^[A-Za-z0-9]{3,20}$')
 );
+
+CREATE UNIQUE INDEX users_username_case_insensitive_unique ON users (LOWER(username));
 
 CREATE TABLE categories (
     category_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -13,7 +17,7 @@ CREATE TABLE categories (
 
 CREATE TABLE products (
     product_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    name TEXT NOT NULL,
+    name VARCHAR(200) NOT NULL,
     description TEXT,
     sku VARCHAR(100) NOT NULL UNIQUE,
     category_id BIGINT NOT NULL REFERENCES categories(category_id),
@@ -501,4 +505,3 @@ SELECT
 FROM
     prepared_products AS prepared
     JOIN categories ON categories.name = prepared.category_name ON CONFLICT (sku) DO NOTHING;
-    

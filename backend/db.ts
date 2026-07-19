@@ -36,6 +36,25 @@ interface ProductInput {
   meta?: Record<string, any>;
 }
 
+/**
+ * remove `undefined` properties, since these properties are meant to use default value provided by database table schema and they should not appear in the sql insertion value list
+ */
+function toColumnsAndValuesIgnoringUndefined(
+  obj: Record<string, any>,
+): [string[], any[]] {
+  const columns = [];
+  const values = [];
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      columns.push(key);
+      values.push(value);
+    }
+  }
+
+  return [columns, values];
+}
+
 export async function getCategories() {
   try {
     const result = await pool.query<Category>(
@@ -77,9 +96,7 @@ export async function getProducts(limit: number = 50, cursor: number = 0) {
 
 export async function createProduct(product: ProductInput) {
   try {
-    const entries = Object.entries(product);
-    const columns = entries.map(([key]) => key);
-    const values = entries.map(([, value]) => value);
+    const [columns, values] = toColumnsAndValuesIgnoringUndefined(product);
     const placeholders = values.map((_, i) => `$${i + 1}`);
 
     const { rows } = await pool.query<Product>(
