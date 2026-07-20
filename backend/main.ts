@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { closeDatabase } from "./db.js";
 import categoriesRouter from "./routers/categories.router.js";
+import cartItemsRouter from "./routers/cart_items.router.js";
 import productsRouter from "./routers/products.router.js";
 import usersRouter from "./routers/users.router.js";
 import { AppError, errorHandler, notFoundHandler } from "./error.js";
@@ -37,6 +38,7 @@ app.use((req, res, next) => {
 });
 app.use("/products", productsRouter);
 app.use("/categories", categoriesRouter);
+app.use("/cart-items", cartItemsRouter);
 app.use("/users", usersRouter);
 
 app.use(notFoundHandler);

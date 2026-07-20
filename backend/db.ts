@@ -7,6 +7,13 @@ const pool = new Pool({
   connectionString: DATABASE_URL,
 });
 
+const CATEGORY_COLUMNS = "category_id, name";
+const PRODUCT_COLUMNS = `product_id, name, description, sku, category_id,
+                         price_amount, inventory, image_url, meta`;
+const USER_COLUMNS =
+  "user_id, username, email, password_hash, nickname, avatar_url";
+const CART_COLUMNS = "user_id, product_id, quantity";
+
 function hasPostgresErrorCode(error: unknown, code: string): boolean {
   return (
     typeof error === "object" &&
@@ -33,7 +40,7 @@ interface Category {
   name: string;
 }
 
-interface Product {
+export interface Product {
   product_id: number;
   name: string;
   description: string | null;
@@ -75,18 +82,28 @@ function toColumnsAndValuesIgnoringUndefined(
   return [columns, values];
 }
 
+function requireReturnedRow<T>(rows: T[], resource: string): T {
+  const row = rows[0];
+
+  if (!row) {
+    throw new Error(`${resource} insert succeeded without returning a row`);
+  }
+
+  return row;
+}
+
 export async function getCategories(): Promise<Category[]> {
   const result = await pool.query<Category>(
-    `SELECT category_id, name
-     FROM categories`,
+    `SELECT ${CATEGORY_COLUMNS}
+     FROM categories
+     ORDER BY name`,
   );
   return result.rows;
 }
 
 export async function getProductById(id: number): Promise<Product | undefined> {
   const result = await pool.query<Product>(
-    `SELECT product_id, name, description, sku, category_id, price_amount,
-            inventory, image_url, meta
+    `SELECT ${PRODUCT_COLUMNS}
      FROM products
      WHERE product_id = $1`,
     [id],
@@ -100,8 +117,7 @@ export async function getProducts(
   cursor: number = 0,
 ): Promise<Product[]> {
   const result = await pool.query<Product>(
-    `SELECT product_id, name, description, sku, category_id, price_amount,
-            inventory, image_url, meta
+    `SELECT ${PRODUCT_COLUMNS}
      FROM products
      WHERE product_id > $1
      ORDER BY product_id
@@ -120,21 +136,15 @@ export async function createProduct(product: ProductInput): Promise<Product> {
     `
       INSERT INTO products (${columns.join(", ")})
       VALUES (${placeholders.join(", ")})
-      RETURNING *
+      RETURNING ${PRODUCT_COLUMNS}
     `,
     values,
   );
 
-  const createdProduct = rows[0];
-
-  if (!createdProduct) {
-    throw new Error("Product insert succeeded without returning a product");
-  }
-
-  return createdProduct;
+  return requireReturnedRow(rows, "Product");
 }
 
-interface User {
+export interface User {
   user_id: number;
   username: string;
   email: string;
@@ -159,23 +169,17 @@ export async function createUser(user: UserInput): Promise<User> {
     `
       INSERT INTO users (${columns.join(", ")})
       VALUES (${placeholders.join(", ")})
-      RETURNING *
+      RETURNING ${USER_COLUMNS}
     `,
     values,
   );
 
-  const createdUser = rows[0];
-
-  if (!createdUser) {
-    throw new Error("User insert succeeded without returning a user");
-  }
-
-  return createdUser;
+  return requireReturnedRow(rows, "User");
 }
 
 export async function getUserById(id: number): Promise<User | undefined> {
   const result = await pool.query<User>(
-    `SELECT user_id, username, email, password_hash, nickname, avatar_url
+    `SELECT ${USER_COLUMNS}
      FROM users
      WHERE user_id = $1`,
     [id],
@@ -187,10 +191,139 @@ export async function getUserByUsername(
   username: string,
 ): Promise<User | undefined> {
   const result = await pool.query<User>(
-    `SELECT user_id, username, email, password_hash, nickname, avatar_url
+    `SELECT ${USER_COLUMNS}
      FROM users
      WHERE LOWER(username) = $1`,
     [username.toLowerCase()],
   );
+  return result.rows[0];
+}
+
+interface Cart {
+  user_id: number;
+  items: { item: Product; quantity: number }[];
+}
+
+interface CartProductRow extends Product {
+  quantity: number;
+}
+
+export async function getCartByUserId(userId: number): Promise<Cart> {
+  const result = await pool.query<CartProductRow>(
+    `SELECT cart_items.quantity,
+            products.product_id, products.name, products.description,
+            products.sku, products.category_id, products.price_amount,
+            products.inventory, products.image_url, products.meta
+     FROM cart_items
+     JOIN products ON products.product_id = cart_items.product_id
+     WHERE cart_items.user_id = $1
+     ORDER BY cart_items.product_id`,
+    [userId],
+  );
+
+  const items = result.rows.map(({ quantity, ...item }) => ({
+    quantity,
+    item,
+  }));
+
+  return { user_id: userId, items };
+}
+
+export interface CartItem {
+  user_id: number;
+  product_id: number;
+  quantity: number;
+}
+
+export async function createCartItem(
+  cartItem: CartItem,
+): Promise<CartItem> {
+  const { user_id, product_id, quantity } = cartItem;
+
+  const { rows } = await pool.query<CartItem>(
+    `
+      INSERT INTO cart_items (user_id, product_id, quantity)
+      VALUES ($1, $2, $3)
+      RETURNING ${CART_COLUMNS}
+    `,
+    [user_id, product_id, quantity],
+  );
+
+  return requireReturnedRow(rows, "Cart item");
+}
+
+export async function getCartItem(
+  userId: number,
+  productId: number,
+): Promise<CartItem | undefined> {
+  const result = await pool.query<CartItem>(
+    `SELECT ${CART_COLUMNS}
+     FROM cart_items
+     WHERE user_id = $1 AND product_id = $2`,
+    [userId, productId],
+  );
+
+  return result.rows[0];
+}
+
+export async function setCartItemQuantity(
+  userId: number,
+  productId: number,
+  quantity: number,
+): Promise<CartItem | undefined> {
+  const result = await pool.query<CartItem>(
+    `UPDATE cart_items
+     SET quantity = $3
+     WHERE user_id = $1 AND product_id = $2
+     RETURNING ${CART_COLUMNS}`,
+    [userId, productId, quantity],
+  );
+
+  return result.rows[0];
+}
+
+async function changeCartItemQuantity(
+  userId: number,
+  productId: number,
+  amount: number,
+): Promise<CartItem | undefined> {
+  const result = await pool.query<CartItem>(
+    `UPDATE cart_items
+     SET quantity = quantity + $3
+     WHERE user_id = $1
+       AND product_id = $2
+       AND quantity + $3 > 0
+     RETURNING ${CART_COLUMNS}`,
+    [userId, productId, amount],
+  );
+
+  return result.rows[0];
+}
+
+export async function incrementCartItem(
+  userId: number,
+  productId: number,
+): Promise<CartItem | undefined> {
+  return changeCartItemQuantity(userId, productId, 1);
+}
+
+export async function decrementCartItem(
+  userId: number,
+  productId: number,
+): Promise<CartItem | undefined> {
+  return changeCartItemQuantity(userId, productId, -1);
+}
+
+export async function deleteCartItem(
+  userId: number,
+  productId: number,
+): Promise<CartItem | undefined> {
+  const result = await pool.query<CartItem>(
+    `DELETE FROM cart_items
+     WHERE user_id = $1 AND product_id = $2
+     RETURNING ${CART_COLUMNS}`,
+    [userId, productId],
+  );
+
   return result.rows[0];
 }

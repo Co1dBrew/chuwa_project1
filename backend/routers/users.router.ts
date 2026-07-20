@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  type User,
   createUser,
   getUserById,
   getUserByUsername,
@@ -70,7 +71,7 @@ export const UserInput = z.object({
 router.post("/registration", async (req, res) => {
   const { password, ...userInput } = parse(UserInput, req.body);
   const passwordHash = await hashPassword(password);
-  let user: Awaited<ReturnType<typeof createUser>>;
+  let user: User;
 
   try {
     user = await createUser({

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  type Product,
   createProduct,
   getProductById,
   getProducts,
@@ -76,7 +77,7 @@ export const ProductInput = z.object({
 
 router.post("/", async (req, res) => {
   const productInput = parse(ProductInput, req.body);
-  let product: Awaited<ReturnType<typeof createProduct>>;
+  let product: Product;
 
   try {
     product = await createProduct(productInput);

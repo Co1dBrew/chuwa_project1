@@ -26,6 +26,7 @@ backend/
   routers/
     products.router.ts
     categories.router.ts
+    cart_items.router.ts   Authenticated cart operations
     users.router.ts
   sql/ddl.sql             Fresh schema and development seed data
 ```
@@ -57,12 +58,34 @@ PostgreSQL outage or a programming error, are logged and returned as a safe
   nonnegative price/inventory, object-shaped metadata, and positive cart
   quantities.
 
+## Database query types
+
+`db.ts` types represent the exact columns each query accepts or returns. Input
+and row types stay separate when PostgreSQL supplies fields or defaults, such
+as a product ID or inventory. They are shared when the shapes are identical:
+`CartItem` is both the required insert input and the row returned by
+`createCartItem`. Join-only shapes, such as a cart item with product details,
+remain private to the query that needs them.
+
+## Cart mutations
+
+Cart mutations are scoped to the authenticated user. A cart item is created
+with a positive `quantity`; later requests can set, increment, decrement, or
+delete it. Increment and decrement each change the quantity by one; only the
+set route accepts a quantity value. Decrement requires the remaining quantity
+to stay above zero. Removing an item is therefore always an explicit `DELETE`
+request.
+
 ## Authentication assumptions
 
 Registration hashes passwords with Argon2. Sign-in verifies the password and
-returns a short-lived JWT access token. Token verification and authorization
-middleware are not implemented yet, so write endpoints are not protected and
-this backend should not be treated as production-ready.
+returns a short-lived JWT access token. `authenticate` verifies token signature,
+issuer, audience, expiry, and a valid integer user ID before protected routes
+receive it. `GET /cart-items` uses that ID to retrieve the caller's cart; it
+does not query user existence again. Consequently, a token for a deleted user
+can return an empty cart until its 15-minute expiry. `GET /cart-items` is
+currently the protected route. Authorization for modifying resources is not
+implemented yet, so this backend should not be treated as production-ready.
 
 ## Design choices
 

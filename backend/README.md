@@ -1,7 +1,8 @@
 # E-commerce Backend
 
-An Express.js and PostgreSQL API for product management. It supports product
-listing and creation, category listing, user registration, and sign-in.
+An Express.js and PostgreSQL API for product and cart management. It supports
+product listing and creation, category listing, user registration, sign-in, and
+authenticated cart operations.
 
 ## Requirements
 
@@ -46,9 +47,19 @@ The API listens on `http://localhost:3000`.
 - `GET /products/:productId`
 - `POST /products`
 - `GET /categories`
+- `GET /cart-items` (requires `Authorization: Bearer <accessToken>`)
+- `POST /cart-items` — add `{ product_id, quantity }`
+- `PATCH /cart-items/:productId` — set `{ quantity }`
+- `POST /cart-items/:productId/increment` — increase by one
+- `POST /cart-items/:productId/decrement` — decrease by one
+- `DELETE /cart-items/:productId` — remove an item
 - `GET /users/:userId`
 - `POST /users/registration`
 - `POST /users/signin`
+
+`GET /cart-items` uses the signed-in user's ID from the access token; it does
+not accept a user ID in the URL. All cart-item mutation routes are protected in
+the same way.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for design details and current
 assumptions.
