@@ -1,7 +1,10 @@
 import { Pool } from "pg";
+import { requireEnv } from "./utils.js";
+
+const DATABASE_URL = requireEnv("DATABASE_URL");
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: DATABASE_URL,
 });
 
 export async function closeDatabase() {
@@ -113,4 +116,63 @@ export async function createProduct(product: ProductInput) {
     console.error("Database error:", error);
     throw error;
   }
+}
+
+interface User {
+  user_id: number;
+  username: string;
+  email: string;
+  password_hash: string;
+  nickname: string | null;
+  avatar_url: string | null;
+}
+
+interface UserInput {
+  username: string;
+  email: string;
+  password_hash: string;
+  nickname?: string;
+  avatar_url?: string;
+}
+
+export async function createUser(user: UserInput) {
+  try {
+    const [columns, values] = toColumnsAndValuesIgnoringUndefined(user);
+    const placeholders = values.map((_, i) => `$${i + 1}`);
+
+    const { rows } = await pool.query<User>(
+      `
+      INSERT INTO users (${columns.join(", ")})
+      VALUES (${placeholders.join(", ")})
+      RETURNING *
+    `,
+      values,
+    );
+
+    return rows[0];
+  } catch (error) {
+    console.error("Database error:", error);
+    throw error;
+  }
+}
+
+export async function getUserById(id: number) {
+  try {
+    const result = await pool.query<User>(
+      `SELECT user_id, username, email, password_hash, nickname, avatar_url from "users" WHERE user_id = $1`,
+      [id],
+    );
+    return result.rows[0];
+  } catch (error) {
+    console.error("Database error:", error);
+    throw error;
+  }
+}
+
+export async function getUserByUsername(username: string) {
+  const result = await pool.query<User>(
+    `SELECT user_id, username, email, password_hash, nickname, avatar_url from "users" WHERE LOWER(username) = $1`,
+    [username.toLowerCase()],
+  );
+  return result.rows[0];
 }
