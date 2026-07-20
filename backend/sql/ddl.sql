@@ -1,33 +1,44 @@
 CREATE TABLE users (
-    user_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
+    user_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    username VARCHAR(20) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    nickname VARCHAR(100),
-    avatar_url TEXT
+    nickname VARCHAR(30),
+    avatar_url TEXT,
+    CONSTRAINT users_username_format_check CHECK (username ~ '^[A-Za-z0-9]{3,20}$')
 );
 
+CREATE UNIQUE INDEX users_username_case_insensitive_unique ON users (LOWER(username));
+
 CREATE TABLE categories (
-    category_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE CHECK (length(trim(name)) > 0)
+    category_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    CONSTRAINT categories_name_not_blank_check CHECK (
+        name = trim(name) AND char_length(name) > 0
+    )
 );
 
 CREATE TABLE products (
-    product_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    name TEXT NOT NULL,
+    product_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
     description TEXT,
     sku VARCHAR(100) NOT NULL UNIQUE,
-    category_id BIGINT NOT NULL REFERENCES categories(category_id),
+    category_id INTEGER NOT NULL REFERENCES categories(category_id),
     -- smallest currency unit
-    price_amount BIGINT NOT NULL,
+    price_amount INTEGER NOT NULL,
     inventory INTEGER NOT NULL DEFAULT 0,
     image_url TEXT,
-    meta JSONB NOT NULL DEFAULT '{}' :: JSONB
+    meta JSONB NOT NULL DEFAULT '{}' :: JSONB,
+    CONSTRAINT products_price_amount_nonnegative_check CHECK (price_amount >= 0),
+    CONSTRAINT products_inventory_nonnegative_check CHECK (inventory >= 0),
+    CONSTRAINT products_meta_object_check CHECK (jsonb_typeof(meta) = 'object')
 );
 
 CREATE TABLE cart_items (
-    user_id BIGINT NOT NULL,
-    product_id BIGINT NOT NULL,
+    user_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 1,
+    CONSTRAINT cart_items_quantity_positive_check CHECK (quantity > 0),
     PRIMARY KEY (user_id, product_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE CASCADE
@@ -67,7 +78,7 @@ WITH product_templates (
         (
             'electronics',
             'NovaTech',
-            19900 :: BIGINT,
+            19900 :: INTEGER,
             ARRAY [
                 'Wireless Noise-Canceling Headphones',
                 'Smartphone 256GB',
@@ -84,7 +95,7 @@ WITH product_templates (
         (
             'clothing',
             'UrbanThread',
-            2500 :: BIGINT,
+            2500 :: INTEGER,
             ARRAY [
                 'Classic Cotton T-Shirt',
                 'Slim Fit Chino Pants',
@@ -101,7 +112,7 @@ WITH product_templates (
         (
             'books',
             'OpenLeaf Press',
-            899 :: BIGINT,
+            899 :: INTEGER,
             ARRAY [
                 'The Art of Clear Thinking',
                 'Practical PostgreSQL',
@@ -118,7 +129,7 @@ WITH product_templates (
         (
             'home',
             'HavenHome',
-            1800 :: BIGINT,
+            1800 :: INTEGER,
             ARRAY [
                 'Soft Microfiber Bed Sheet Set',
                 'Decorative Throw Pillow',
@@ -135,7 +146,7 @@ WITH product_templates (
         (
             'kitchen',
             'ChefCraft',
-            1500 :: BIGINT,
+            1500 :: INTEGER,
             ARRAY [
                 'Stainless Steel Chef Knife',
                 'Non-Stick Frying Pan',
@@ -152,7 +163,7 @@ WITH product_templates (
         (
             'beauty',
             'PureGlow',
-            1200 :: BIGINT,
+            1200 :: INTEGER,
             ARRAY [
                 'Hydrating Facial Cleanser',
                 'Vitamin C Face Serum',
@@ -169,7 +180,7 @@ WITH product_templates (
         (
             'health',
             'WellSpring',
-            900 :: BIGINT,
+            900 :: INTEGER,
             ARRAY [
                 'Digital Oral Thermometer',
                 'Weekly Pill Organizer',
@@ -186,7 +197,7 @@ WITH product_templates (
         (
             'sports',
             'PeakMotion',
-            1600 :: BIGINT,
+            1600 :: INTEGER,
             ARRAY [
                 'Professional Basketball',
                 'Training Soccer Ball',
@@ -203,7 +214,7 @@ WITH product_templates (
         (
             'outdoors',
             'TrailBound',
-            2200 :: BIGINT,
+            2200 :: INTEGER,
             ARRAY [
                 'Lightweight Camping Tent',
                 'Insulated Sleeping Bag',
@@ -220,7 +231,7 @@ WITH product_templates (
         (
             'toys',
             'BrightPlay',
-            1100 :: BIGINT,
+            1100 :: INTEGER,
             ARRAY [
                 'Wooden Building Block Set',
                 'Remote Control Racing Car',
@@ -237,7 +248,7 @@ WITH product_templates (
         (
             'games',
             'NextMove',
-            1400 :: BIGINT,
+            1400 :: INTEGER,
             ARRAY [
                 'Family Strategy Board Game',
                 'Classic Playing Card Set',
@@ -254,7 +265,7 @@ WITH product_templates (
         (
             'automotive',
             'RoadPro',
-            1700 :: BIGINT,
+            1700 :: INTEGER,
             ARRAY [
                 'Portable Tire Inflator',
                 'Car Phone Mount',
@@ -271,7 +282,7 @@ WITH product_templates (
         (
             'grocery',
             'DailyHarvest',
-            450 :: BIGINT,
+            450 :: INTEGER,
             ARRAY [
                 'Organic Ground Coffee',
                 'Whole Grain Breakfast Oats',
@@ -288,7 +299,7 @@ WITH product_templates (
         (
             'pet-supplies',
             'HappyPaws',
-            800 :: BIGINT,
+            800 :: INTEGER,
             ARRAY [
                 'Orthopedic Pet Bed',
                 'Adjustable Dog Collar',
@@ -305,7 +316,7 @@ WITH product_templates (
         (
             'office-supplies',
             'WorkWise',
-            600 :: BIGINT,
+            600 :: INTEGER,
             ARRAY [
                 'Hardcover Meeting Notebook',
                 'Smooth Writing Pen Set',
@@ -322,7 +333,7 @@ WITH product_templates (
         (
             'jewelry',
             'LunaStone',
-            2400 :: BIGINT,
+            2400 :: INTEGER,
             ARRAY [
                 'Sterling Silver Pendant Necklace',
                 'Minimalist Gold-Plated Ring',
@@ -339,7 +350,7 @@ WITH product_templates (
         (
             'shoes',
             'StrideWorks',
-            3200 :: BIGINT,
+            3200 :: INTEGER,
             ARRAY [
                 'Everyday Running Shoes',
                 'Classic Canvas Sneakers',
@@ -356,7 +367,7 @@ WITH product_templates (
         (
             'bags',
             'CarryAll',
-            2600 :: BIGINT,
+            2600 :: INTEGER,
             ARRAY [
                 'Water-Resistant Laptop Backpack',
                 'Canvas Weekend Duffel Bag',
@@ -373,7 +384,7 @@ WITH product_templates (
         (
             'music',
             'SoundHouse',
-            1300 :: BIGINT,
+            1300 :: INTEGER,
             ARRAY [
                 'Acoustic Guitar Starter Guide',
                 'Digital Piano Song Collection',
@@ -390,7 +401,7 @@ WITH product_templates (
         (
             'movies',
             'SilverScreen',
-            1000 :: BIGINT,
+            1000 :: INTEGER,
             ARRAY [
                 'Galactic Horizon 4K Edition',
                 'The Last Detective Blu-ray',
@@ -501,4 +512,3 @@ SELECT
 FROM
     prepared_products AS prepared
     JOIN categories ON categories.name = prepared.category_name ON CONFLICT (sku) DO NOTHING;
-    

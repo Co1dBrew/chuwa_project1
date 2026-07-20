@@ -4,6 +4,7 @@
     "module": "nodenext",
     "types": ["node"],
     "outDir": "dist",
-    "strict": true
+    "strict": true,
+    "noUncheckedIndexedAccess": true
   }
 }
