@@ -1,25 +1,35 @@
 import { Router } from "express";
 import { z } from "zod";
-import { createUser, getUserById, getUserByUsername } from "../db.js";
+import {
+  createUser,
+  getUserById,
+  getUserByUsername,
+  isUniqueViolation,
+} from "../db.js";
 import { createAccessToken, hashPassword, verifyPassword } from "../auth.js";
+import { AppError } from "../error.js";
+import { MAX_POSTGRES_INTEGER } from "../utils.js";
+import { parse } from "../validation.js";
 
 const router = Router();
 
-const UserIdSchema = z.coerce.number().int().positive();
+const UserIdSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+  .max(MAX_POSTGRES_INTEGER);
 
 router.get("/:userId", async (req, res) => {
-  try {
-    const userId = UserIdSchema.parse(req.params.userId);
-    const { password_hash, ...safeUser } = await getUserById(userId);
+  const userId = parse(UserIdSchema, req.params.userId);
+  const user = await getUserById(userId);
 
-    res.json(safeUser);
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      error: "Failed to fetch user",
-    });
+  if (!user) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }
+
+  const { password_hash, ...safeUser } = user;
+
+  res.json(safeUser);
 });
 
 const optionalNickname = z.preprocess(
@@ -58,14 +68,28 @@ export const UserInput = z.object({
 });
 
 router.post("/registration", async (req, res) => {
-  // avatar url is not provided during registration, it is set later separately
-  const { password, ...safeUserInput } = UserInput.parse(req.body);
+  const { password, ...userInput } = parse(UserInput, req.body);
   const passwordHash = await hashPassword(password);
-  const { password_hash, ...safeUser } = await createUser({
-    ...safeUserInput,
-    password_hash: passwordHash,
-    avatar_url: undefined,
-  });
+  let user: Awaited<ReturnType<typeof createUser>>;
+
+  try {
+    user = await createUser({
+      ...userInput,
+      password_hash: passwordHash,
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new AppError(
+        409,
+        "ACCOUNT_ALREADY_EXISTS",
+        "An account with those details already exists",
+      );
+    }
+
+    throw error;
+  }
+
+  const { password_hash: _passwordHash, ...safeUser } = user;
 
   res.status(201).location(`/users/${safeUser.user_id}`).json(safeUser);
 });
@@ -77,19 +101,30 @@ const SignInInput = z.object({
 });
 
 router.post("/signin", async (req, res) => {
-  const { username, password } = SignInInput.parse(req.body);
+  const { username, password } = parse(SignInInput, req.body);
+  const user = await getUserByUsername(username);
 
-  const { password_hash, ...safeUser } = await getUserByUsername(username);
-
-  const ok = await verifyPassword(password_hash, password);
-
-  if (!ok) {
-    return res.status(401).json({
-      error: "Invalid username or password",
-    });
+  if (!user) {
+    throw new AppError(
+      401,
+      "INVALID_CREDENTIALS",
+      "Invalid username or password",
+    );
   }
 
-  const accessToken = createAccessToken(String(safeUser.user_id));
+  const { password_hash, ...safeUser } = user;
+
+  const valid = await verifyPassword(password_hash, password);
+
+  if (!valid) {
+    throw new AppError(
+      401,
+      "INVALID_CREDENTIALS",
+      "Invalid username or password",
+    );
+  }
+
+  const accessToken = createAccessToken(safeUser.user_id);
 
   res.json({
     message: "Login successful",

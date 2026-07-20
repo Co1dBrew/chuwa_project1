@@ -1,44 +1,50 @@
 import { Router } from "express";
 import { z } from "zod";
-import { createProduct, getProductById, getProducts } from "../db.js";
+import {
+  createProduct,
+  getProductById,
+  getProducts,
+  isForeignKeyViolation,
+  isUniqueViolation,
+} from "../db.js";
+import { AppError } from "../error.js";
+import { MAX_POSTGRES_INTEGER } from "../utils.js";
+import { parse } from "../validation.js";
 
 const router = Router();
 
 const QuerySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
-  cursor: z.coerce.number().int().nonnegative().optional(),
+  cursor: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .max(MAX_POSTGRES_INTEGER)
+    .optional(),
 });
 
 router.get("/", async (req, res) => {
-  try {
-    const { limit, cursor } = QuerySchema.parse(req.query);
-    const products = await getProducts(limit, cursor);
+  const { limit, cursor } = parse(QuerySchema, req.query);
+  const products = await getProducts(limit, cursor);
 
-    res.json(products);
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      error: "Failed to fetch products",
-    });
-  }
+  res.json(products);
 });
 
-const ProductIdSchema = z.coerce.number().int().positive();
+const ProductIdSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+  .max(MAX_POSTGRES_INTEGER);
 
 router.get("/:productId", async (req, res) => {
-  try {
-    const productId = ProductIdSchema.parse(req.params.productId);
-    const product = await getProductById(productId);
+  const productId = parse(ProductIdSchema, req.params.productId);
+  const product = await getProductById(productId);
 
-    res.json(product);
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      error: "Failed to fetch product",
-    });
+  if (!product) {
+    throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
   }
+
+  res.json(product);
 });
 
 const optionalString = z.preprocess(
@@ -56,16 +62,43 @@ export const ProductInput = z.object({
   name: z.string().trim().min(1).max(200),
   description: optionalString,
   sku: z.string().trim().min(1).max(100),
-  category_id: z.number().int().positive(),
-  price_amount: z.number().int().nonnegative(),
-  inventory: z.number().int().nonnegative().optional(),
+  category_id: z.number().int().positive().max(MAX_POSTGRES_INTEGER),
+  price_amount: z.number().int().nonnegative().max(MAX_POSTGRES_INTEGER),
+  inventory: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(MAX_POSTGRES_INTEGER)
+    .optional(),
   image_url: optionalUrl,
   meta: z.record(z.string(), z.unknown()).optional(),
 });
 
 router.post("/", async (req, res) => {
-  const productInput = ProductInput.parse(req.body);
-  const product = await createProduct(productInput);
+  const productInput = parse(ProductInput, req.body);
+  let product: Awaited<ReturnType<typeof createProduct>>;
+
+  try {
+    product = await createProduct(productInput);
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new AppError(
+        409,
+        "SKU_ALREADY_EXISTS",
+        "A product with this SKU already exists",
+      );
+    }
+
+    if (isForeignKeyViolation(error)) {
+      throw new AppError(
+        422,
+        "INVALID_CATEGORY",
+        "The selected category does not exist",
+      );
+    }
+
+    throw error;
+  }
 
   res.status(201).location(`/products/${product.product_id}`).json(product);
 });

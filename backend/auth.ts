@@ -4,10 +4,10 @@ import { requireEnv } from "./utils.js";
 
 const JWT_SECRET = requireEnv("JWT_SECRET");
 
-export function createAccessToken(userId: string) {
+export function createAccessToken(userId: number) {
   return jwt.sign(
     {
-      sub: userId,
+      sub: String(userId),
     },
     JWT_SECRET,
     {
@@ -17,6 +17,7 @@ export function createAccessToken(userId: string) {
     },
   );
 }
+
 export async function hashPassword(password: string) {
   return argon2.hash(password);
 }
