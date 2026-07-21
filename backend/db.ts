@@ -8,10 +8,10 @@ const pool = new Pool({
 });
 
 const CATEGORY_COLUMNS = "category_id, name";
-const PRODUCT_COLUMNS = `product_id, name, description, sku, category_id,
+const PRODUCT_COLUMNS = `product_id, merchant_id, name, description, sku, category_id,
                          price_amount, inventory, image_key, meta`;
 const USER_COLUMNS =
-  "user_id, username, email, password_hash, nickname, avatar_key";
+  "user_id, username, email, password_hash, nickname, avatar_key, role";
 const CART_COLUMNS = "user_id, product_id, quantity";
 
 function hasPostgresErrorCode(error: unknown, code: string): boolean {
@@ -42,6 +42,7 @@ interface Category {
 
 export interface Product {
   product_id: number;
+  merchant_id: number;
   name: string;
   description: string | null;
   sku: string;
@@ -52,13 +53,15 @@ export interface Product {
   meta: Record<string, unknown>;
 }
 
-interface ProductInput {
+export interface CreateProductInput {
+  merchant_id: number;
   name: string;
   description?: string;
   sku: string;
   category_id: number;
   price_amount: number;
   inventory?: number;
+  image_key?: string;
   meta?: Record<string, unknown>;
 }
 
@@ -127,7 +130,9 @@ export async function getProducts(
   return result.rows;
 }
 
-export async function createProduct(product: ProductInput): Promise<Product> {
+export async function createProduct(
+  product: CreateProductInput,
+): Promise<Product> {
   const [columns, values] = toColumnsAndValuesIgnoringUndefined(product);
   const placeholders = values.map((_, i) => `$${i + 1}`);
 
@@ -145,14 +150,29 @@ export async function createProduct(product: ProductInput): Promise<Product> {
 
 export async function updateProductImageKey(
   productId: number,
+  merchantId: number,
   imageKey: string,
 ): Promise<Product | undefined> {
   const result = await pool.query<Product>(
     `UPDATE products
-     SET image_key = $2
-     WHERE product_id = $1
+     SET image_key = $3
+     WHERE product_id = $1 AND merchant_id = $2
      RETURNING ${PRODUCT_COLUMNS}`,
-    [productId, imageKey],
+    [productId, merchantId, imageKey],
+  );
+
+  return result.rows[0];
+}
+
+export async function deleteProduct(
+  productId: number,
+  merchantId: number,
+): Promise<Product | undefined> {
+  const result = await pool.query<Product>(
+    `DELETE FROM products
+     WHERE product_id = $1 AND merchant_id = $2
+     RETURNING ${PRODUCT_COLUMNS}`,
+    [productId, merchantId],
   );
 
   return result.rows[0];
@@ -165,30 +185,52 @@ export interface User {
   password_hash: string;
   nickname: string | null;
   avatar_key: string | null;
+  role: UserRole;
 }
 
-interface UserInput {
+export type UserRole = "customer" | "merchant";
+
+export interface CreateUserInput {
   username: string;
   email: string;
   password_hash: string;
   nickname?: string;
   avatar_key?: string;
+  role: UserRole;
 }
 
-export async function createUser(user: UserInput): Promise<User> {
+export async function createUser(user: CreateUserInput): Promise<User> {
   const [columns, values] = toColumnsAndValuesIgnoringUndefined(user);
   const placeholders = values.map((_, i) => `$${i + 1}`);
+  const client = await pool.connect();
 
-  const { rows } = await pool.query<User>(
-    `
-      INSERT INTO users (${columns.join(", ")})
-      VALUES (${placeholders.join(", ")})
-      RETURNING ${USER_COLUMNS}
-    `,
-    values,
-  );
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<User>(
+      `
+        INSERT INTO users (${columns.join(", ")})
+        VALUES (${placeholders.join(", ")})
+        RETURNING ${USER_COLUMNS}
+      `,
+      values,
+    );
+    const createdUser = requireReturnedRow(rows, "User");
+    const profileTable =
+      createdUser.role === "customer"
+        ? "customer_profiles"
+        : "merchant_profiles";
 
-  return requireReturnedRow(rows, "User");
+    await client.query(`INSERT INTO ${profileTable} (user_id) VALUES ($1)`, [
+      createdUser.user_id,
+    ]);
+    await client.query("COMMIT");
+    return createdUser;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function updateUserAvatarKey(
@@ -240,8 +282,9 @@ interface CartProductRow extends Product {
 export async function getCartByUserId(userId: number): Promise<Cart> {
   const result = await pool.query<CartProductRow>(
     `SELECT cart_items.quantity,
-            products.product_id, products.name, products.description,
-            products.sku, products.category_id, products.price_amount,
+            products.product_id, products.merchant_id, products.name,
+            products.description, products.sku, products.category_id,
+            products.price_amount,
             products.inventory, products.image_key, products.meta
      FROM cart_items
      JOIN products ON products.product_id = cart_items.product_id
@@ -264,9 +307,7 @@ export interface CartItem {
   quantity: number;
 }
 
-export async function createCartItem(
-  cartItem: CartItem,
-): Promise<CartItem> {
+export async function createCartItem(cartItem: CartItem): Promise<CartItem> {
   const { user_id, product_id, quantity } = cartItem;
 
   const { rows } = await pool.query<CartItem>(

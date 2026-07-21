@@ -20,7 +20,7 @@ backend/
   main.ts                 Express setup, JSON parsing, routes, shutdown
   error.ts                AppError and final HTTP error responses
   validation.ts           Zod validation → AppError conversion
-  auth.ts                 Password hashing and access-token creation
+  auth.ts                 Password hashing, token verification, and role checks
   db.ts                   PostgreSQL pool, queries, database-error helpers
   utils.ts                Environment helper and INTEGER range constant
   images/
@@ -58,6 +58,11 @@ PostgreSQL outage or a programming error, are logged and returned as a safe
 - IDs and `price_amount` use PostgreSQL `INTEGER`, so they map safely to
   JavaScript `number`.
 - `price_amount` is stored in the currency's smallest unit, such as cents.
+- Every user has exactly one application role: `customer` or `merchant`.
+  Registration creates the matching profile row in the same transaction.
+- `products.merchant_id` references `merchant_profiles`; `cart_items.user_id`
+  references `customer_profiles`. This prevents customers from owning products
+  and merchants from owning carts at the database level.
 - Product responses contain `category_id`; clients fetch `/categories` to map
   an ID to a display name.
 - Product and avatar images store opaque keys; the storage adapter determines
@@ -75,10 +80,12 @@ An image route authenticates the caller and chooses its scope (`avatars` or
 `products`). `images/upload.ts` parses the multipart `image` field, limits it
 to 5 MB, and validates the bytes as JPEG, PNG, or WebP. The selected
 `ImageStorage` saves it and returns an opaque key; the router stores that key
-on its user or product row. Responses map stored keys to public URLs. Local
-storage writes under `uploads/`, which `main.ts` serves at `/media`. On
-replacement, the new file is saved and its key is stored before the previous
-file is deleted.
+on its user or product row. `POST /products` accepts the product fields and an
+optional image in one multipart request; text form fields are validated with
+coercion, and `meta` is a JSON string. Responses map stored keys to public
+URLs. Local storage writes under `uploads/`, which `main.ts` serves at
+`/media`. On replacement, the new file is saved and its key is stored before
+the previous file is deleted.
 
 ## Database query types
 
@@ -91,25 +98,29 @@ remain private to the query that needs them.
 
 ## Cart mutations
 
-Cart mutations are scoped to the authenticated user. A cart item is created
-with a positive `quantity`; later requests can set, increment, decrement, or
-delete it. Increment and decrement each change the quantity by one; only the
-set route accepts a quantity value. Decrement requires the remaining quantity
-to stay above zero. Removing an item is therefore always an explicit `DELETE`
-request.
+Cart routes require the `customer` role and are scoped to that authenticated
+user. A cart item is created with a positive `quantity`; later requests can
+set, increment, decrement, or delete it. Increment and decrement each change
+the quantity by one; only the set route accepts a quantity value. Decrement
+requires the remaining quantity to stay above zero. Removing an item is
+therefore always an explicit `DELETE` request.
+
+Deleting a product is restricted to its owning merchant. The database's
+`ON DELETE CASCADE` removes associated cart items immediately. This is the
+current simple behavior; a future cart-retention design can store a removed-item
+record or product snapshot so customers can understand why an item vanished.
 
 ## Authentication assumptions
 
-Registration hashes passwords with Argon2. Sign-in verifies the password and
-returns a short-lived JWT access token. `authenticate` verifies token signature,
-issuer, audience, expiry, and a valid integer user ID before protected routes
-receive it. `GET /cart-items` uses that ID to retrieve the caller's cart; it
-does not query user existence again. Consequently, a token for a deleted user
-can return an empty cart until its 15-minute expiry. Cart and image-upload
-routes are protected. Avatar uploads update only the authenticated user;
-product-image uploads currently require authentication but have no
-product-management authorization, so this backend should not be treated as
-production-ready.
+Registration hashes passwords with Argon2 and creates either a customer or
+merchant profile. Sign-in verifies the password and returns a short-lived JWT
+access token. `authenticate` verifies token signature, issuer, audience,
+expiry, and a valid integer user ID before protected routes receive it.
+`requireRole` then loads the current user role from the database, so deleted
+accounts receive `401` and role changes take effect immediately. Cart routes
+require customers; product creation requires merchants; product-image updates
+also verify product ownership. Avatar uploads update only the authenticated
+user.
 
 ## Design choices
 

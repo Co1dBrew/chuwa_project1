@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { authenticate } from "../auth.js";
+import { authenticate, requireRole } from "../auth.js";
 import {
   type CartItem,
   createCartItem,
@@ -20,7 +20,9 @@ import { parse } from "../validation.js";
 
 const router = Router();
 
-router.get("/", authenticate, async (req, res) => {
+router.use(authenticate, requireRole("customer"));
+
+router.get("/", async (req, res) => {
   const cart = await getCartByUserId(req.auth!.userId);
   res.json({
     ...cart,
@@ -54,7 +56,7 @@ function requireCartItem<T>(cartItem: T | undefined): T {
   return cartItem;
 }
 
-router.post("/", authenticate, async (req, res) => {
+router.post("/", async (req, res) => {
   const cartItemInput = parse(CartItemInput, req.body);
   let cartItem: CartItem;
 
@@ -82,7 +84,7 @@ router.post("/", authenticate, async (req, res) => {
   res.status(201).location(`/cart-items/${cartItem.product_id}`).json(cartItem);
 });
 
-router.patch("/:productId", authenticate, async (req, res) => {
+router.patch("/:productId", async (req, res) => {
   const productId = parse(ProductId, req.params.productId);
   const { quantity } = parse(QuantityInput, req.body);
   const cartItem = requireCartItem(
@@ -92,7 +94,7 @@ router.patch("/:productId", authenticate, async (req, res) => {
   res.json(cartItem);
 });
 
-router.post("/:productId/increment", authenticate, async (req, res) => {
+router.post("/:productId/increment", async (req, res) => {
   const productId = parse(ProductId, req.params.productId);
   const cartItem = requireCartItem(
     await incrementCartItem(req.auth!.userId, productId),
@@ -101,7 +103,7 @@ router.post("/:productId/increment", authenticate, async (req, res) => {
   res.json(cartItem);
 });
 
-router.post("/:productId/decrement", authenticate, async (req, res) => {
+router.post("/:productId/decrement", async (req, res) => {
   const productId = parse(ProductId, req.params.productId);
   const cartItem = await decrementCartItem(req.auth!.userId, productId);
 
@@ -119,7 +121,7 @@ router.post("/:productId/decrement", authenticate, async (req, res) => {
   res.json(cartItem);
 });
 
-router.delete("/:productId", authenticate, async (req, res) => {
+router.delete("/:productId", async (req, res) => {
   const productId = parse(ProductId, req.params.productId);
   requireCartItem(await deleteCartItem(req.auth!.userId, productId));
 

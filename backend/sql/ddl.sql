@@ -1,3 +1,5 @@
+CREATE TYPE user_role AS ENUM ('customer', 'merchant');
+
 CREATE TABLE users (
     user_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     username VARCHAR(20) NOT NULL,
@@ -5,10 +7,24 @@ CREATE TABLE users (
     password_hash TEXT NOT NULL,
     nickname VARCHAR(30),
     avatar_key TEXT,
-    CONSTRAINT users_username_format_check CHECK (username ~ '^[A-Za-z0-9]{3,20}$')
+    role user_role NOT NULL,
+    CONSTRAINT users_username_format_check CHECK (username ~ '^[A-Za-z0-9]{3,20}$'),
+    UNIQUE (user_id, role)
 );
 
 CREATE UNIQUE INDEX users_username_case_insensitive_unique ON users (LOWER(username));
+
+CREATE TABLE customer_profiles (
+    user_id INTEGER PRIMARY KEY,
+    role user_role NOT NULL DEFAULT 'customer' CHECK (role = 'customer'),
+    FOREIGN KEY (user_id, role) REFERENCES users(user_id, role)
+);
+
+CREATE TABLE merchant_profiles (
+    user_id INTEGER PRIMARY KEY,
+    role user_role NOT NULL DEFAULT 'merchant' CHECK (role = 'merchant'),
+    FOREIGN KEY (user_id, role) REFERENCES users(user_id, role)
+);
 
 CREATE TABLE categories (
     category_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -20,6 +36,7 @@ CREATE TABLE categories (
 
 CREATE TABLE products (
     product_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    merchant_id INTEGER NOT NULL REFERENCES merchant_profiles(user_id),
     name VARCHAR(200) NOT NULL,
     description TEXT,
     sku VARCHAR(100) NOT NULL UNIQUE,
@@ -34,13 +51,15 @@ CREATE TABLE products (
     CONSTRAINT products_meta_object_check CHECK (jsonb_typeof(meta) = 'object')
 );
 
+CREATE INDEX products_merchant_id_idx ON products (merchant_id);
+
 CREATE TABLE cart_items (
     user_id INTEGER NOT NULL,
     product_id INTEGER NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 1,
     CONSTRAINT cart_items_quantity_positive_check CHECK (quantity > 0),
     PRIMARY KEY (user_id, product_id),
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES customer_profiles(user_id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE CASCADE
 );
 
@@ -67,6 +86,22 @@ VALUES
     ('bags'),
     ('music'),
     ('movies') ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO
+    users (username, email, password_hash, role)
+VALUES
+    ('storefront', 'storefront@example.com', 'seed-only-no-login', 'merchant')
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO
+    merchant_profiles (user_id)
+SELECT
+    user_id
+FROM
+    users
+WHERE
+    email = 'storefront@example.com'
+ON CONFLICT (user_id) DO NOTHING;
 
 WITH product_templates (
     category_name,
@@ -491,6 +526,7 @@ prepared_products AS (
 )
 INSERT INTO
     products (
+        merchant_id,
         name,
         description,
         sku,
@@ -501,6 +537,7 @@ INSERT INTO
         meta
     )
 SELECT
+    merchant.user_id,
     prepared.name,
     prepared.description,
     prepared.sku,
@@ -511,4 +548,6 @@ SELECT
     prepared.meta
 FROM
     prepared_products AS prepared
-    JOIN categories ON categories.name = prepared.category_name ON CONFLICT (sku) DO NOTHING;
+    JOIN categories ON categories.name = prepared.category_name
+    JOIN users AS merchant_user ON merchant_user.email = 'storefront@example.com'
+    JOIN merchant_profiles AS merchant ON merchant.user_id = merchant_user.user_id ON CONFLICT (sku) DO NOTHING;

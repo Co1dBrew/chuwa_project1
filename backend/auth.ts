@@ -1,6 +1,7 @@
 import argon2 from "argon2";
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import { getUserById, type UserRole } from "./db.js";
 import { AppError } from "./error.js";
 import { MAX_POSTGRES_INTEGER, requireEnv } from "./utils.js";
 
@@ -42,11 +43,7 @@ declare global {
   }
 }
 
-export function authenticate(
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) {
+export function authenticate(req: Request, _res: Response, next: NextFunction) {
   const authorization = req.get("Authorization");
 
   if (!authorization?.startsWith("Bearer ")) throw unauthenticated();
@@ -79,4 +76,22 @@ export function authenticate(
 
   req.auth = { userId };
   next();
+}
+
+export function requireRole(role: UserRole) {
+  return async (req: Request, _res: Response, next: NextFunction) => {
+    const userId = req.auth?.userId;
+
+    if (!userId) throw unauthenticated();
+
+    const user = await getUserById(userId);
+
+    if (!user) throw unauthenticated();
+
+    if (user.role !== role) {
+      throw new AppError(403, "FORBIDDEN", "Insufficient permissions");
+    }
+
+    next();
+  };
 }

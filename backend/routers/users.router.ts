@@ -113,6 +113,7 @@ export const UserInput = z.object({
     .pipe(z.email({ error: "Enter a valid email address." })),
   password,
   nickname: optionalNickname,
+  role: z.enum(["customer", "merchant"]),
 });
 
 router.post("/registration", async (req, res) => {
