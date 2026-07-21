@@ -1,8 +1,6 @@
 # E-commerce Backend
 
-An Express.js and PostgreSQL API for product and cart management. It supports
-product listing and creation, category listing, user registration, sign-in, and
-authenticated cart operations.
+An Express.js and PostgreSQL API for product, user, cart, and image management.
 
 ## Requirements
 
@@ -39,7 +37,8 @@ script. Start it with a TypeScript runner:
 npx tsx main.ts
 ```
 
-The API listens on `http://localhost:3000`.
+The API listens on `http://localhost:3000`. Locally uploaded files are stored
+in `uploads/` and publicly served from `/media`.
 
 ## Routes
 
@@ -47,6 +46,10 @@ The API listens on `http://localhost:3000`.
 - `GET /products/:productId`
 - `POST /products`
 - `GET /categories`
+- `GET /media/:scope/:filename` — public local image file
+- `GET /users/me` (requires `Authorization: Bearer <accessToken>`)
+- `POST /users/me/avatar` — multipart field `image`; requires auth
+- `POST /products/:productId/image` — multipart field `image`; requires auth
 - `GET /cart-items` (requires `Authorization: Bearer <accessToken>`)
 - `POST /cart-items` — add `{ product_id, quantity }`
 - `PATCH /cart-items/:productId` — set `{ quantity }`
@@ -60,6 +63,10 @@ The API listens on `http://localhost:3000`.
 `GET /cart-items` uses the signed-in user's ID from the access token; it does
 not accept a user ID in the URL. All cart-item mutation routes are protected in
 the same way.
+
+Image upload routes accept one `image` field in `multipart/form-data`. JPEG,
+PNG, and WebP files up to 5 MB are supported. Product-image uploads currently
+require authentication but do not yet enforce product-management authorization.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for design details and current
 assumptions.

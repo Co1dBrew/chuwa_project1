@@ -9,9 +9,9 @@ const pool = new Pool({
 
 const CATEGORY_COLUMNS = "category_id, name";
 const PRODUCT_COLUMNS = `product_id, name, description, sku, category_id,
-                         price_amount, inventory, image_url, meta`;
+                         price_amount, inventory, image_key, meta`;
 const USER_COLUMNS =
-  "user_id, username, email, password_hash, nickname, avatar_url";
+  "user_id, username, email, password_hash, nickname, avatar_key";
 const CART_COLUMNS = "user_id, product_id, quantity";
 
 function hasPostgresErrorCode(error: unknown, code: string): boolean {
@@ -48,7 +48,7 @@ export interface Product {
   category_id: number;
   price_amount: number;
   inventory: number;
-  image_url: string | null;
+  image_key: string | null;
   meta: Record<string, unknown>;
 }
 
@@ -59,7 +59,6 @@ interface ProductInput {
   category_id: number;
   price_amount: number;
   inventory?: number;
-  image_url?: string;
   meta?: Record<string, unknown>;
 }
 
@@ -144,13 +143,28 @@ export async function createProduct(product: ProductInput): Promise<Product> {
   return requireReturnedRow(rows, "Product");
 }
 
+export async function updateProductImageKey(
+  productId: number,
+  imageKey: string,
+): Promise<Product | undefined> {
+  const result = await pool.query<Product>(
+    `UPDATE products
+     SET image_key = $2
+     WHERE product_id = $1
+     RETURNING ${PRODUCT_COLUMNS}`,
+    [productId, imageKey],
+  );
+
+  return result.rows[0];
+}
+
 export interface User {
   user_id: number;
   username: string;
   email: string;
   password_hash: string;
   nickname: string | null;
-  avatar_url: string | null;
+  avatar_key: string | null;
 }
 
 interface UserInput {
@@ -158,7 +172,7 @@ interface UserInput {
   email: string;
   password_hash: string;
   nickname?: string;
-  avatar_url?: string;
+  avatar_key?: string;
 }
 
 export async function createUser(user: UserInput): Promise<User> {
@@ -175,6 +189,21 @@ export async function createUser(user: UserInput): Promise<User> {
   );
 
   return requireReturnedRow(rows, "User");
+}
+
+export async function updateUserAvatarKey(
+  userId: number,
+  avatarKey: string,
+): Promise<User | undefined> {
+  const result = await pool.query<User>(
+    `UPDATE users
+     SET avatar_key = $2
+     WHERE user_id = $1
+     RETURNING ${USER_COLUMNS}`,
+    [userId, avatarKey],
+  );
+
+  return result.rows[0];
 }
 
 export async function getUserById(id: number): Promise<User | undefined> {
@@ -213,7 +242,7 @@ export async function getCartByUserId(userId: number): Promise<Cart> {
     `SELECT cart_items.quantity,
             products.product_id, products.name, products.description,
             products.sku, products.category_id, products.price_amount,
-            products.inventory, products.image_url, products.meta
+            products.inventory, products.image_key, products.meta
      FROM cart_items
      JOIN products ON products.product_id = cart_items.product_id
      WHERE cart_items.user_id = $1

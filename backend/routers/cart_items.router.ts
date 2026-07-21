@@ -4,8 +4,8 @@ import { authenticate } from "../auth.js";
 import {
   type CartItem,
   createCartItem,
-  deleteCartItem,
   decrementCartItem,
+  deleteCartItem,
   getCartByUserId,
   getCartItem,
   incrementCartItem,
@@ -14,13 +14,28 @@ import {
   setCartItemQuantity,
 } from "../db.js";
 import { AppError } from "../error.js";
+import { imageStorage } from "../images/provider.js";
 import { MAX_POSTGRES_INTEGER } from "../utils.js";
 import { parse } from "../validation.js";
 
 const router = Router();
 
 router.get("/", authenticate, async (req, res) => {
-  res.json(await getCartByUserId(req.auth!.userId));
+  const cart = await getCartByUserId(req.auth!.userId);
+  res.json({
+    ...cart,
+    items: cart.items.map(({ item, quantity }) => {
+      const { image_key, ...product } = item;
+
+      return {
+        item: {
+          ...product,
+          image_url: image_key ? imageStorage.getPublicUrl(image_key) : null,
+        },
+        quantity,
+      };
+    }),
+  });
 });
 
 export const CartItemInput = z.object({

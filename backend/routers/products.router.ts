@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { authenticate } from "../auth.js";
 import {
   type Product,
   createProduct,
@@ -7,12 +8,24 @@ import {
   getProducts,
   isForeignKeyViolation,
   isUniqueViolation,
+  updateProductImageKey,
 } from "../db.js";
 import { AppError } from "../error.js";
+import { imageStorage } from "../images/provider.js";
+import { saveUploadedImage, uploadImage } from "../images/upload.js";
 import { MAX_POSTGRES_INTEGER } from "../utils.js";
 import { parse } from "../validation.js";
 
 const router = Router();
+
+function toProductResponse(product: Product) {
+  const { image_key, ...publicProduct } = product;
+
+  return {
+    ...publicProduct,
+    image_url: image_key ? imageStorage.getPublicUrl(image_key) : null,
+  };
+}
 
 const QuerySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
@@ -28,7 +41,7 @@ router.get("/", async (req, res) => {
   const { limit, cursor } = parse(QuerySchema, req.query);
   const products = await getProducts(limit, cursor);
 
-  res.json(products);
+  res.json(products.map(toProductResponse));
 });
 
 const ProductIdSchema = z.coerce
@@ -45,18 +58,40 @@ router.get("/:productId", async (req, res) => {
     throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
   }
 
-  res.json(product);
+  res.json(toProductResponse(product));
 });
+
+router.post(
+  "/:productId/image",
+  authenticate,
+  uploadImage,
+  async (req, res) => {
+    const productId = parse(ProductIdSchema, req.params.productId);
+    const existingProduct = await getProductById(productId);
+
+    if (!existingProduct) {
+      throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
+    }
+
+    const imageKey = await saveUploadedImage(req, "products");
+    const product = await updateProductImageKey(productId, imageKey);
+
+    if (!product) {
+      throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
+    }
+
+    if (existingProduct.image_key) {
+      await imageStorage.delete(existingProduct.image_key);
+    }
+
+    res.json(toProductResponse(product));
+  },
+);
 
 const optionalString = z.preprocess(
   (value) =>
     typeof value === "string" && value.trim() === "" ? undefined : value,
   z.string().trim().optional(),
-);
-
-const optionalUrl = z.preprocess(
-  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-  z.string().trim().pipe(z.url()).optional(),
 );
 
 export const ProductInput = z.object({
@@ -71,7 +106,6 @@ export const ProductInput = z.object({
     .nonnegative()
     .max(MAX_POSTGRES_INTEGER)
     .optional(),
-  image_url: optionalUrl,
   meta: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -101,7 +135,10 @@ router.post("/", async (req, res) => {
     throw error;
   }
 
-  res.status(201).location(`/products/${product.product_id}`).json(product);
+  res
+    .status(201)
+    .location(`/products/${product.product_id}`)
+    .json(toProductResponse(product));
 });
 
 export default router;

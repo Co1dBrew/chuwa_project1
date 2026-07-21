@@ -1,24 +1,73 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  authenticate,
+  createAccessToken,
+  hashPassword,
+  verifyPassword,
+} from "../auth.js";
+import {
   type User,
   createUser,
   getUserById,
   getUserByUsername,
   isUniqueViolation,
+  updateUserAvatarKey,
 } from "../db.js";
-import { createAccessToken, hashPassword, verifyPassword } from "../auth.js";
 import { AppError } from "../error.js";
+import { imageStorage } from "../images/provider.js";
+import { saveUploadedImage, uploadImage } from "../images/upload.js";
 import { MAX_POSTGRES_INTEGER } from "../utils.js";
 import { parse } from "../validation.js";
 
 const router = Router();
+
+function toUserResponse(user: User) {
+  const { password_hash, avatar_key, ...publicUser } = user;
+
+  return {
+    ...publicUser,
+    avatar_url: avatar_key ? imageStorage.getPublicUrl(avatar_key) : null,
+  };
+}
 
 const UserIdSchema = z.coerce
   .number()
   .int()
   .positive()
   .max(MAX_POSTGRES_INTEGER);
+
+router.get("/me", authenticate, async (req, res) => {
+  const user = await getUserById(req.auth!.userId);
+
+  if (!user) {
+    throw new AppError(401, "UNAUTHENTICATED", "Authentication required");
+  }
+
+  res.json(toUserResponse(user));
+});
+
+router.post("/me/avatar", authenticate, uploadImage, async (req, res) => {
+  const userId = req.auth!.userId;
+  const user = await getUserById(userId);
+
+  if (!user) {
+    throw new AppError(401, "UNAUTHENTICATED", "Authentication required");
+  }
+
+  const avatarKey = await saveUploadedImage(req, "avatars");
+  const updatedUser = await updateUserAvatarKey(userId, avatarKey);
+
+  if (!updatedUser) {
+    throw new AppError(401, "UNAUTHENTICATED", "Authentication required");
+  }
+
+  if (user.avatar_key) {
+    await imageStorage.delete(user.avatar_key);
+  }
+
+  res.json(toUserResponse(updatedUser));
+});
 
 router.get("/:userId", async (req, res) => {
   const userId = parse(UserIdSchema, req.params.userId);
@@ -28,9 +77,7 @@ router.get("/:userId", async (req, res) => {
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }
 
-  const { password_hash, ...safeUser } = user;
-
-  res.json(safeUser);
+  res.json(toUserResponse(user));
 });
 
 const optionalNickname = z.preprocess(
@@ -49,7 +96,7 @@ const optionalNickname = z.preprocess(
 
 const username = z.string().regex(/^[A-Za-z0-9]{3,20}$/, {
   error:
-    "Username must be 3–20   characters using only English letters and numbers.",
+    "Username must be 3–20 characters using only English letters and numbers.",
 });
 
 const password = z
@@ -90,9 +137,9 @@ router.post("/registration", async (req, res) => {
     throw error;
   }
 
-  const { password_hash: _passwordHash, ...safeUser } = user;
+  const publicUser = toUserResponse(user);
 
-  res.status(201).location(`/users/${safeUser.user_id}`).json(safeUser);
+  res.status(201).location(`/users/${publicUser.user_id}`).json(publicUser);
 });
 
 // TODO: support sign in using either email or username
@@ -113,9 +160,7 @@ router.post("/signin", async (req, res) => {
     );
   }
 
-  const { password_hash, ...safeUser } = user;
-
-  const valid = await verifyPassword(password_hash, password);
+  const valid = await verifyPassword(user.password_hash, password);
 
   if (!valid) {
     throw new AppError(
@@ -125,12 +170,13 @@ router.post("/signin", async (req, res) => {
     );
   }
 
-  const accessToken = createAccessToken(safeUser.user_id);
+  const publicUser = toUserResponse(user);
+  const accessToken = createAccessToken(publicUser.user_id);
 
   res.json({
     message: "Login successful",
-    accessToken: accessToken,
-    user: safeUser,
+    accessToken,
+    user: publicUser,
   });
 });
 

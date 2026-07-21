@@ -4,7 +4,7 @@ CREATE TABLE users (
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     nickname VARCHAR(30),
-    avatar_url TEXT,
+    avatar_key TEXT,
     CONSTRAINT users_username_format_check CHECK (username ~ '^[A-Za-z0-9]{3,20}$')
 );
 
@@ -27,7 +27,7 @@ CREATE TABLE products (
     -- smallest currency unit
     price_amount INTEGER NOT NULL,
     inventory INTEGER NOT NULL DEFAULT 0,
-    image_url TEXT,
+    image_key TEXT,
     meta JSONB NOT NULL DEFAULT '{}' :: JSONB,
     CONSTRAINT products_price_amount_nonnegative_check CHECK (price_amount >= 0),
     CONSTRAINT products_inventory_nonnegative_check CHECK (inventory >= 0),
@@ -452,9 +452,9 @@ prepared_products AS (
         base_price + (item_number * 275) AS price_amount,
         25 + ((global_number * 17) % 476) :: INTEGER AS inventory,
         format(
-            'http://localhost:3000/products/PRD-%s.jpg',
+            'products/PRD-%s.jpg',
             lpad(global_number :: TEXT, 4, '0')
-        ) AS image_url,
+        ) AS image_key,
         jsonb_build_object(
             'brand',
             brand,
@@ -497,7 +497,7 @@ INSERT INTO
         category_id,
         price_amount,
         inventory,
-        image_url,
+        image_key,
         meta
     )
 SELECT
@@ -507,7 +507,7 @@ SELECT
     categories.category_id,
     prepared.price_amount,
     prepared.inventory,
-    prepared.image_url,
+    prepared.image_key,
     prepared.meta
 FROM
     prepared_products AS prepared

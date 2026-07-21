@@ -2,8 +2,8 @@
 
 ## Overview
 
-This is a small, feature-oriented Express API with PostgreSQL. It deliberately
-uses a flat structure while the application is small:
+This is a small Express API with PostgreSQL. Core application concerns stay
+flat while related image modules are grouped together:
 
 ```text
 HTTP request
@@ -23,6 +23,12 @@ backend/
   auth.ts                 Password hashing and access-token creation
   db.ts                   PostgreSQL pool, queries, database-error helpers
   utils.ts                Environment helper and INTEGER range constant
+  images/
+    storage.ts             Image validation, storage contract, and key generation
+    provider.ts            Configured image-storage implementation
+    upload.ts              Multipart parsing and upload-to-storage helper
+    local-storage.ts       Local filesystem storage implementation
+    s3-storage.ts          AWS S3 storage implementation
   routers/
     products.router.ts
     categories.router.ts
@@ -54,9 +60,25 @@ PostgreSQL outage or a programming error, are logged and returned as a safe
 - `price_amount` is stored in the currency's smallest unit, such as cents.
 - Product responses contain `category_id`; clients fetch `/categories` to map
   an ID to a display name.
+- Product and avatar images store opaque keys; the storage adapter determines
+  where their bytes live. API responses expose `image_url` and `avatar_url`
+  instead of those keys.
+- With local storage, Express serves image files from `/media`; an S3/R2
+  adapter would instead return its own public URLs.
 - Database constraints protect core integrity: keys, uniqueness, foreign keys,
   nonnegative price/inventory, object-shaped metadata, and positive cart
   quantities.
+
+## Image flow
+
+An image route authenticates the caller and chooses its scope (`avatars` or
+`products`). `images/upload.ts` parses the multipart `image` field, limits it
+to 5 MB, and validates the bytes as JPEG, PNG, or WebP. The selected
+`ImageStorage` saves it and returns an opaque key; the router stores that key
+on its user or product row. Responses map stored keys to public URLs. Local
+storage writes under `uploads/`, which `main.ts` serves at `/media`. On
+replacement, the new file is saved and its key is stored before the previous
+file is deleted.
 
 ## Database query types
 
@@ -83,9 +105,11 @@ returns a short-lived JWT access token. `authenticate` verifies token signature,
 issuer, audience, expiry, and a valid integer user ID before protected routes
 receive it. `GET /cart-items` uses that ID to retrieve the caller's cart; it
 does not query user existence again. Consequently, a token for a deleted user
-can return an empty cart until its 15-minute expiry. `GET /cart-items` is
-currently the protected route. Authorization for modifying resources is not
-implemented yet, so this backend should not be treated as production-ready.
+can return an empty cart until its 15-minute expiry. Cart and image-upload
+routes are protected. Avatar uploads update only the authenticated user;
+product-image uploads currently require authentication but have no
+product-management authorization, so this backend should not be treated as
+production-ready.
 
 ## Design choices
 

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { closeDatabase } from "./db.js";
+import { LOCAL_UPLOAD_DIRECTORY } from "./images/local-storage.js";
 import categoriesRouter from "./routers/categories.router.js";
 import cartItemsRouter from "./routers/cart_items.router.js";
 import productsRouter from "./routers/products.router.js";
@@ -36,6 +37,7 @@ app.use((req, res, next) => {
     next(toJsonParserError(error) ?? error);
   });
 });
+app.use("/media", express.static(LOCAL_UPLOAD_DIRECTORY));
 app.use("/products", productsRouter);
 app.use("/categories", categoriesRouter);
 app.use("/cart-items", cartItemsRouter);
