@@ -3,3 +3,10 @@
 body {
   margin: 0;
 }
+
+/* Constrains page content so it does not stretch across the whole screen. */
+.page-container {
+  max-width: 1200px; /* content is at most 1200px wide */
+  margin: 0 auto;    /* center it, leaving equal space on both sides */
+  padding: 24px;     /* breathing room, matching the header's left/right padding */
+}
