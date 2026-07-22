@@ -1,22 +1,5 @@
-/* Global styles: a small reset plus a few helpers on top of Ant Design. */
+@import "tailwindcss";
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
-  background-color: #f5f5f5;
-}
-
-/* Fill the viewport height so the footer can sit at the bottom. */
-#root {
-  min-height: 100vh;
-}
-
-/* Centers page content and limits its width. */
-.page-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px 16px;
-  width: 100%;
-  box-sizing: border-box;
 }
