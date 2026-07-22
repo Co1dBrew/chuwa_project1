@@ -1,7 +1,4 @@
-/*
- * SignUpPage renders the reusable AuthForm in "signup" mode and connects it to
- * the Redux sign-up thunk. New accounts are created with the "user" role.
- */
+// Renders AuthForm in "signup" mode and wires it to the Redux sign-up thunk.
 
 import { useEffect } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
@@ -40,6 +37,7 @@ function SignUpPage() {
       username: values.username ?? "",
       email: values.email ?? "",
       password: values.password ?? "",
+      role: values.role ?? "user",
     };
 
     dispatch(signUpThunk(input))
@@ -49,7 +47,7 @@ function SignUpPage() {
         navigate("/products");
       })
       .catch(function () {
-        // The error (for example a duplicate email) is shown by AuthForm.
+        // The error is shown by AuthForm.
       });
   }
 

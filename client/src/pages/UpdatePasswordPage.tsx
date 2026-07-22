@@ -1,10 +1,4 @@
-/*
- * UpdatePasswordPage renders the reusable AuthForm in "updatePassword" mode and
- * connects it to the Redux update-password thunk.
- *
- * This page is wrapped in ProtectedRoute, so it is only reachable while signed
- * in. The thunk figures out who the current user is from the store.
- */
+// Renders AuthForm in "updatePassword" mode, wired to the update-password thunk.
 
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -45,7 +39,7 @@ function UpdatePasswordPage() {
         navigate("/products");
       })
       .catch(function () {
-        // The error (for example a wrong current password) is shown by AuthForm.
+        // The error is shown by AuthForm.
       });
   }
 

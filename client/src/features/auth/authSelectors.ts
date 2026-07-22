@@ -1,13 +1,4 @@
-/*
- * Selectors for the auth slice.
- *
- * A selector is a small function that reads one specific thing out of the whole
- * Redux state. Components use selectors (through the useAppSelector hook) so
- * they only re-render when the exact value they care about changes.
- *
- * Keeping selectors in one file means that if the shape of the state ever
- * changes, we only fix the reading logic here.
- */
+// Selectors for the auth slice.
 
 import type { RootState } from "../../app/store";
 

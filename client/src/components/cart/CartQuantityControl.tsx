@@ -1,16 +1,5 @@
-/*
- * CartQuantityControl is the little "minus / number / plus" control used to
- * change how many of an item are in the cart.
- *
- * It is presentational: it does not touch the Redux store itself. It just shows
- * the current quantity and calls the callbacks the parent gives it. The parent
- * (CartItem) is the one that dispatches the actual changes. This keeps the
- * control reusable anywhere a quantity needs picking.
- *
- * It enforces the limits visually:
- *   - the minus button is disabled at quantity 1 (never go to 0 here)
- *   - the plus button is disabled once the quantity reaches the stock
- */
+// Presentational minus/number/plus control for picking a quantity.
+// Disables minus at 1 and plus once quantity reaches stock.
 
 import { Button, InputNumber, Space } from "antd";
 import { MinusOutlined, PlusOutlined } from "@ant-design/icons";
@@ -30,8 +19,7 @@ function CartQuantityControl({
   onDecrease,
   onSetQuantity,
 }: CartQuantityControlProps) {
-  // InputNumber gives us a number, or null if the box is empty. If it is null
-  // we simply ignore the change until a real number is typed.
+  // InputNumber passes null when the box is empty; ignore until a number is typed.
   function handleInputChange(value: number | null) {
     if (value !== null) {
       onSetQuantity(value);

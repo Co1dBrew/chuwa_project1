@@ -1,15 +1,4 @@
-/*
- * The top navigation bar, shown on every page.
- *
- * It adapts to who is looking at it:
- *   - The cart icon shows a live badge with the number of items in the cart.
- *   - If nobody is signed in, it shows "Sign in" and "Sign up" buttons.
- *   - If a user is signed in, it shows their name and a menu with "Update
- *     password" and "Logout". Administrators also get an "Admin" tag.
- *
- * All of these values come from the Redux store through selectors, so the header
- * always matches the rest of the app.
- */
+// The top navigation bar, shown on every page. Adapts to auth and cart state.
 
 import { Link, useNavigate } from "react-router-dom";
 import { Badge, Button, Dropdown, Space, Tag } from "antd";
@@ -28,25 +17,21 @@ function Header() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  // Read the values we need out of the Redux store.
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
   const isAdmin = useAppSelector(selectIsAdmin);
   const currentUser = useAppSelector(selectCurrentUser);
   const cartItemCount = useAppSelector(selectCartItemCount);
 
-  // Sign the user out, then send them back to the products page.
   function handleLogout() {
     dispatch(logout());
     navigate("/products");
   }
 
-  // The choices shown in the signed-in user's dropdown menu.
   const userMenuItems: MenuProps["items"] = [
     { key: "update-password", label: "Update password" },
     { key: "logout", label: "Logout" },
   ];
 
-  // Runs when the user clicks a choice in the dropdown menu.
   function handleUserMenuClick(info: { key: string }) {
     if (info.key === "logout") {
       handleLogout();
@@ -70,7 +55,6 @@ function Header() {
         zIndex: 10,
       }}
     >
-      {/* The site name, which links back to the product list. */}
       <Link
         to="/products"
         style={{ fontSize: 18, fontWeight: 600, color: "#1677ff" }}
@@ -79,7 +63,6 @@ function Header() {
       </Link>
 
       <Space size="middle">
-        {/* Cart icon with a badge. The badge hides itself when the count is 0. */}
         <Link to="/cart" aria-label="Cart">
           <Badge count={cartItemCount} size="small">
             <ShoppingCartOutlined style={{ fontSize: 22, color: "#333" }} />
@@ -87,7 +70,6 @@ function Header() {
         </Link>
 
         {isAuthenticated ? (
-          // Signed in: show the user's name and a dropdown menu.
           <Dropdown
             menu={{ items: userMenuItems, onClick: handleUserMenuClick }}
             placement="bottomRight"
@@ -102,7 +84,6 @@ function Header() {
             </Button>
           </Dropdown>
         ) : (
-          // Signed out: show sign in and sign up buttons.
           <Space size="small">
             <Link to="/signin">
               <Button>Sign in</Button>

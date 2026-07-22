@@ -1,25 +1,14 @@
-/*
- * DeleteProductModal asks the admin to confirm before a product is deleted.
- *
- * It is a "controlled" dialog: the parent decides whether it is open and which
- * product it refers to, and reacts to the confirm/cancel buttons. Keeping the
- * real delete logic in the parent lets the parent also refresh the list and fix
- * the page number afterwards.
- */
+// Controlled confirm dialog shown before an admin deletes a product.
 
 import { Modal } from "antd";
 import type { Product } from "../../types/product";
 
 interface DeleteProductModalProps {
-  /** Whether the dialog is currently visible. */
   open: boolean;
   /** The product about to be deleted (null when nothing is selected). */
   product: Product | null;
-  /** true while the delete request is running. */
   loading: boolean;
-  /** Called when the admin confirms the deletion. */
   onConfirm: () => void;
-  /** Called when the admin cancels. */
   onCancel: () => void;
 }
 

@@ -1,20 +1,4 @@
-/*
- * ProductFormPage handles BOTH creating a new product and editing an existing
- * one, using the single reusable ProductForm component.
- *
- * How it decides the mode:
- *   - If the URL has a productId (/products/:productId/edit) -> EDIT mode.
- *     It loads the product and prefills the form.
- *   - If there is no productId (/products/new) -> CREATE mode.
- *     The form starts blank.
- *
- * After a successful save it navigates away so the change is visible:
- *   - after create -> go to the product list (the new product appears there)
- *   - after edit   -> go to that product's detail page (shows the new info)
- *
- * This page is only reachable by admins, because its routes are wrapped in
- * AdminRoute.
- */
+// Create or edit a product with the reusable ProductForm (admin-only routes).
 
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -37,26 +21,24 @@ function ProductFormPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
 
-  // If there is an id in the URL we are editing; otherwise we are creating.
+  // An id in the URL means edit mode; otherwise create mode.
   const isEditMode = productId !== undefined;
 
-  // In edit mode we must load the product first, so start in the loading state.
+  // Edit mode loads the product first, so start in the loading state.
   const [loading, setLoading] = useState(isEditMode);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // The values used to prefill the form (undefined = blank create form).
+  // Values used to prefill the form (undefined = blank create form).
   const [initialValues, setInitialValues] = useState<ProductFormValues | undefined>(
     undefined,
   );
 
-  // In edit mode, load the existing product and turn it into form values.
   useEffect(
     function () {
       let isCurrent = true;
 
       async function loadProduct() {
-        // In create mode there is nothing to load.
         if (!isEditMode || productId === undefined) {
           return;
         }
@@ -93,10 +75,8 @@ function ProductFormPage() {
     [isEditMode, productId],
   );
 
-  // Called by ProductForm when the user submits valid values.
   async function handleSubmit(values: ProductFormValues) {
-    // Convert the form values (price in dollars) into the data the service
-    // expects (price in cents).
+    // Convert form values (price in dollars) into service input (price in cents).
     const input = formValuesToProductInput(values);
 
     setSubmitting(true);
@@ -108,12 +88,10 @@ function ProductFormPage() {
       } else {
         await createProduct(input);
         message.success("Product created.");
-        // Go to the list, where the newly created product now appears at the top.
         navigate("/products");
       }
     } catch (caughtError) {
-      // For example a duplicate SKU. Show the message and keep the form open so
-      // the user does not lose what they typed.
+      // On failure (e.g. duplicate SKU) keep the form open so input is not lost.
       const messageText =
         caughtError instanceof Error ? caughtError.message : "Save failed.";
       message.error(messageText);

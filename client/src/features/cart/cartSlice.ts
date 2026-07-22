@@ -1,24 +1,5 @@
-/*
- * The shopping cart "slice" of the Redux store.
- *
- * This slice owns everything about the cart: the list of items, the applied
- * promotion code, and the discount it produces. Because the cart is global
- * state, the header badge, the product pages and the cart page all read from
- * this ONE place and therefore always agree with each other.
- *
- * CARTS ARE SAVED PER USER.
- * We keep a single object in localStorage that maps a user id to that user's
- * cart, for example: { "u2": { items: [...], ... }, "u5": { ... } }.
- *   - When a user logs in, we load THEIR cart from this map (extraReducers).
- *   - When the cart changes, the store saves it back under their id (store.ts).
- *   - When a user logs out, we empty the in-memory cart so nothing shows, but
- *     their saved cart stays in storage for next time.
- * Guests (logged-out visitors) do not have a cart at all.
- *
- * Most cart changes here are synchronous, so we use plain reducers. The
- * load-on-login / clear-on-logout behaviour reacts to the auth actions, so it
- * lives in extraReducers.
- */
+// The shopping cart slice of the Redux store. Carts are saved per user in
+// localStorage under a "user id -> cart" map; guests have no cart.
 
 import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
@@ -37,19 +18,11 @@ import {
 /** The key under which the "user id -> cart" map is saved in localStorage. */
 const CARTS_STORAGE_KEY = "pms.carts";
 
-/**
- * The promotion codes the store accepts.
- * - "percent" means a percentage off the subtotal (value is the percent).
- * - "fixed" means a fixed amount off in cents (value is the number of cents).
- */
+/** The promotion codes the store accepts (percent off, or fixed cents off). */
 const PROMOTIONS: Record<string, { type: "percent" | "fixed"; value: number }> = {
   SAVE10: { type: "percent", value: 10 }, // 10% off
   WELCOME5: { type: "fixed", value: 500 }, // $5.00 off
 };
-
-/* ------------------------------------------------------------------ */
-/* Per-user cart storage helpers                                       */
-/* ------------------------------------------------------------------ */
 
 /** Build a brand-new, empty cart. */
 function createEmptyCart(): CartState {
@@ -80,20 +53,14 @@ function loadCartForUser(userId: string): CartState {
   return { ...savedCart, promotionError: null };
 }
 
-/**
- * Save one user's cart back into the map. Exported so the store (store.ts) can
- * call it whenever the cart changes.
- */
+/** Save one user's cart back into the map (called by the store on cart changes). */
 export function saveCartForUser(userId: string, cart: CartState): void {
   const allCarts = readAllCarts();
   allCarts[userId] = cart;
   saveToStorage(CARTS_STORAGE_KEY, allCarts);
 }
 
-/**
- * Find out who is logged in by reading the saved auth data. This lets us load
- * that user's cart as the starting state after a page refresh.
- */
+/** Read the logged-in user's id from saved auth data, or null. */
 function findLoggedInUserId(): string | null {
   const savedAuth = loadFromStorage<{ user: User | null }>(AUTH_STORAGE_KEY);
   if (savedAuth !== null && savedAuth.user !== null) {
@@ -111,10 +78,6 @@ function buildInitialState(): CartState {
   return createEmptyCart();
 }
 
-/* ------------------------------------------------------------------ */
-/* Money helpers                                                       */
-/* ------------------------------------------------------------------ */
-
 /** Add up the price of every item in the cart (before any discount). */
 function calculateSubtotalCents(items: CartItem[]): number {
   let subtotal = 0;
@@ -124,15 +87,8 @@ function calculateSubtotalCents(items: CartItem[]): number {
   return subtotal;
 }
 
-/**
- * Recalculate the discount and store it on the state.
- *
- * We call this after ANY change that affects the total (adding items, changing
- * quantities, applying a code, etc.) so the discount is always correct for the
- * current cart. It is kept as its own helper so the logic lives in one place.
- */
+/** Recalculate the discount and store it on the state. */
 function recalculateDiscount(state: CartState): void {
-  // No code applied means no discount.
   if (state.promotionCode === "") {
     state.discountCents = 0;
     return;
@@ -161,22 +117,14 @@ function recalculateDiscount(state: CartState): void {
   state.discountCents = discount;
 }
 
-/* ------------------------------------------------------------------ */
-/* The slice                                                           */
-/* ------------------------------------------------------------------ */
-
 const cartSlice = createSlice({
   name: "cart",
   initialState: buildInitialState(),
   reducers: {
-    /**
-     * Add a product to the cart. If it is already there, add one more (but never
-     * more than the available stock).
-     */
+    /** Add a product to the cart, or increment it up to the stock limit. */
     addToCart(state, action: PayloadAction<Product>) {
       const product = action.payload;
 
-      // Cannot add a product that is out of stock.
       if (product.stock <= 0) {
         return;
       }
@@ -186,12 +134,9 @@ const cartSlice = createSlice({
       });
 
       if (existingItem === undefined) {
-        // Not in the cart yet: add a new line with quantity 1.
         state.items.push(productToCartItem(product));
       } else {
-        // Already in the cart. First refresh the stored stock limit from the
-        // product we were just given, in case an admin changed the stock since
-        // this line was added. Then add one more, up to that limit.
+        // Refresh the stock limit (an admin may have changed it), then add one more.
         existingItem.stock = product.stock;
         if (existingItem.quantity < existingItem.stock) {
           existingItem.quantity = existingItem.quantity + 1;
@@ -235,10 +180,7 @@ const cartSlice = createSlice({
       recalculateDiscount(state);
     },
 
-    /**
-     * Set an exact quantity for one item (used when the user types a number).
-     * The value is kept between 1 and the available stock.
-     */
+    /** Set an exact quantity for one item, clamped between 1 and the stock. */
     setQuantity(state, action: PayloadAction<{ productId: string; quantity: number }>) {
       const { productId, quantity } = action.payload;
       const item = state.items.find(function (current) {
@@ -251,15 +193,13 @@ const cartSlice = createSlice({
 
       let safeQuantity = quantity;
 
-      // Guard against bad input such as text, empty, or numbers that are too low.
       if (Number.isNaN(safeQuantity) || safeQuantity < 1) {
         safeQuantity = 1;
       }
 
-      // You cannot buy half a product, so round down to a whole number.
+      // Round down; you cannot buy a fraction of a product.
       safeQuantity = Math.floor(safeQuantity);
 
-      // Never allow more than the stock.
       if (safeQuantity > item.stock) {
         safeQuantity = item.stock;
       }
@@ -277,12 +217,9 @@ const cartSlice = createSlice({
       recalculateDiscount(state);
     },
 
-    /**
-     * Try to apply a promotion code. If it is valid we store it and recalculate
-     * the discount; if it is not, we store an error message instead.
-     */
+    /** Apply a promotion code, or store an error message if it is invalid. */
     applyPromotionCode(state, action: PayloadAction<string>) {
-      // Compare in upper case so "save10" and "SAVE10" both work.
+      // Upper-case so "save10" and "SAVE10" both match.
       const code = action.payload.trim().toUpperCase();
 
       if (code === "") {
@@ -292,14 +229,12 @@ const cartSlice = createSlice({
 
       const promotion = PROMOTIONS[code];
       if (promotion === undefined) {
-        // Invalid code: clear any previous discount and show the error.
         state.promotionCode = "";
         state.discountCents = 0;
         state.promotionError = "That promotion code is not valid.";
         return;
       }
 
-      // Valid code: store it, clear the error, and recalculate the discount.
       state.promotionCode = code;
       state.promotionError = null;
       recalculateDiscount(state);
@@ -312,11 +247,7 @@ const cartSlice = createSlice({
       state.promotionError = null;
     },
 
-    /**
-     * Clear only the promotion error message (not the applied code). The
-     * promotion form calls this when it opens, so an old "invalid code" error
-     * does not linger the next time the user visits the cart.
-     */
+    /** Clear only the promotion error message, not the applied code. */
     clearPromotionError(state) {
       state.promotionError = null;
     },
@@ -330,25 +261,19 @@ const cartSlice = createSlice({
     },
   },
 
-  /*
-   * extraReducers react to actions from OTHER slices (here, the auth slice).
-   * This is how the cart follows the logged-in user around.
-   */
+  // React to auth actions so the cart follows the logged-in user.
   extraReducers: function (builder) {
-    // When a user signs in, replace the current (empty) cart with the cart they
-    // had saved from before. (The first argument, the old state, is not used
-    // because we are fully replacing it, so we name it "_state".)
+    // On sign in, load that user's saved cart.
     builder.addCase(signInThunk.fulfilled, function (_state, action) {
       return loadCartForUser(action.payload.user.id);
     });
 
-    // Same when a brand-new account signs up (they simply start with an empty cart).
+    // On sign up, start with the new user's (empty) cart.
     builder.addCase(signUpThunk.fulfilled, function (_state, action) {
       return loadCartForUser(action.payload.user.id);
     });
 
-    // When the user logs out, empty the in-memory cart so nothing shows while
-    // logged out. Their saved cart stays in storage for next time.
+    // On logout, empty the in-memory cart; the saved cart stays in storage.
     builder.addCase(logout, function () {
       return createEmptyCart();
     });

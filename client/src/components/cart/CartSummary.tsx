@@ -1,10 +1,4 @@
-/*
- * CartSummary shows the money breakdown for the cart: subtotal, discount, and
- * the final total, plus a checkout button.
- *
- * It reads the amounts from the store through selectors, so it always matches
- * whatever is currently in the cart.
- */
+// CartSummary shows the subtotal, discount, and total plus a checkout button.
 
 import { Button, Divider } from "antd";
 import { useAppSelector } from "../../app/hooks";
@@ -16,9 +10,7 @@ import {
 import { formatCents } from "../../utils/currency";
 
 interface CartSummaryProps {
-  /** Called when the user clicks "Checkout". */
   onCheckout: () => void;
-  /** true while the checkout request is running (shows a loading button). */
   checkoutLoading?: boolean;
 }
 
@@ -27,7 +19,6 @@ function CartSummary({ onCheckout, checkoutLoading = false }: CartSummaryProps) 
   const discountCents = useAppSelector(selectDiscountCents);
   const totalCents = useAppSelector(selectTotalCents);
 
-  // Reusable little row of "label ....... amount".
   function renderRow(label: string, amount: string, bold: boolean) {
     return (
       <div
@@ -58,7 +49,7 @@ function CartSummary({ onCheckout, checkoutLoading = false }: CartSummaryProps) 
 
       {renderRow("Subtotal", formatCents(subtotalCents), false)}
 
-      {/* Only show the discount line when there actually is a discount. */}
+      {/* Only show the discount line when there is a discount. */}
       {discountCents > 0
         ? renderRow("Discount", "-" + formatCents(discountCents), false)
         : null}
@@ -67,12 +58,8 @@ function CartSummary({ onCheckout, checkoutLoading = false }: CartSummaryProps) 
 
       {renderRow("Total", formatCents(totalCents), true)}
 
-      {/*
-       * The Checkout button is always enabled here. We do not disable it for a
-       * $0 total, because a total of $0 is a valid fully-discounted order. The
-       * "empty cart" case never reaches this component: CartPage shows an empty
-       * state instead of the summary when there are no items.
-       */}
+      {/* Always enabled: a $0 total is a valid fully-discounted order, and the
+          empty-cart case never renders this component. */}
       <Button
         type="primary"
         block

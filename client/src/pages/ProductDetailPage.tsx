@@ -1,11 +1,4 @@
-/*
- * ProductDetailPage shows the full details of a single product.
- *
- * It reads the product id from the URL (for example /products/p1), loads that
- * product from the service, and shows everything about it. It also lets the
- * shopper add it to the cart, shows how many are already in the cart, and gives
- * admins Edit and Delete buttons. If the id does not exist, it shows an error.
- */
+// Shows the details of a single product, with add-to-cart and admin actions.
 
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -30,7 +23,6 @@ import ErrorMessage from "../components/common/ErrorMessage";
 import DeleteProductModal from "../components/product/DeleteProductModal";
 
 function ProductDetailPage() {
-  // Read the ":productId" part of the URL.
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -41,8 +33,7 @@ function ProductDetailPage() {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Bumping this number forces the product to reload (used by "Try again").
-  // This mirrors the "refreshCounter" pattern in ProductListPage.
+  // Bumping this forces a reload (used by "Try again").
   const [refreshCounter, setRefreshCounter] = useState(0);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -62,7 +53,6 @@ function ProductDetailPage() {
       let isCurrent = true;
 
       async function loadProduct() {
-        // If somehow there is no id in the URL, treat it as not found.
         if (productId === undefined) {
           setError("Product not found.");
           setLoading(false);
@@ -102,7 +92,6 @@ function ProductDetailPage() {
   );
 
   function handleRetry() {
-    // Reload by bumping the refresh counter (see the load effect above).
     setRefreshCounter(function (previous) {
       return previous + 1;
     });
@@ -149,8 +138,6 @@ function ProductDetailPage() {
       setDeleteOpen(false);
     }
   }
-
-  // ----- Rendering -----
 
   if (loading) {
     return <LoadingSpinner message="Loading product..." />;

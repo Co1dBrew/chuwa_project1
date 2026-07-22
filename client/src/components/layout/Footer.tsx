@@ -1,9 +1,6 @@
-/*
- * A simple footer shown at the bottom of every page.
- */
+// The footer shown at the bottom of every page.
 
 function Footer() {
-  // Show the current year automatically so it never becomes out of date.
   const currentYear = new Date().getFullYear();
 
   return (

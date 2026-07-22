@@ -1,15 +1,10 @@
-/*
- * A friendly "there is nothing here" message. Used, for example, when a search
- * returns no products, or when the shopping cart is empty.
- */
+// An empty-state message shown when there is nothing to display.
 
 import type { ReactNode } from "react";
 import { Empty } from "antd";
 
 interface EmptyStateProps {
-  /** The message describing what is empty. */
   message?: string;
-  /** Optional extra content, such as a button, shown under the message. */
   children?: ReactNode;
 }
 

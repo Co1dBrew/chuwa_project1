@@ -1,13 +1,4 @@
-/*
- * The mock authentication service.
- *
- * Like the product service, this pretends to be a backend server: every
- * function returns a Promise, waits a moment, and either resolves with data or
- * rejects by throwing an Error with a clear message.
- *
- * User accounts are stored in localStorage, seeded from the MOCK_USERS list on
- * first run. New sign-ups are added there so they survive a refresh.
- */
+// Mock authentication service backed by localStorage; mimics a real API.
 
 import type {
   AuthResult,
@@ -19,17 +10,16 @@ import type {
 import { MOCK_USERS, type StoredUser } from "../mocks/users";
 import { loadFromStorage, saveToStorage } from "../utils/storage";
 
-/** The key under which the user list is saved in localStorage. */
 const STORAGE_KEY = "pms.users";
 
-/** Wait a number of milliseconds to imitate a network request. */
+// Fake the small delay of a network request.
 function delay(milliseconds: number): Promise<void> {
   return new Promise(function (resolve) {
     window.setTimeout(resolve, milliseconds);
   });
 }
 
-/** Read all stored users, seeding from the mock list on first run. */
+// Read all stored users, seeding from the mock list on first run.
 function readAllUsers(): StoredUser[] {
   const savedUsers = loadFromStorage<StoredUser[]>(STORAGE_KEY);
 
@@ -41,15 +31,11 @@ function readAllUsers(): StoredUser[] {
   return savedUsers;
 }
 
-/** Save all users back to storage. */
 function writeAllUsers(users: StoredUser[]): void {
   saveToStorage(STORAGE_KEY, users);
 }
 
-/**
- * Turn a stored user (which includes the password) into the public User object
- * (which never includes the password).
- */
+// Convert a stored user into the public User object (no password).
 function toPublicUser(storedUser: StoredUser): User {
   return {
     id: storedUser.id,
@@ -59,26 +45,16 @@ function toPublicUser(storedUser: StoredUser): User {
   };
 }
 
-/**
- * Create a fake login token. In a real app this comes from the server and
- * proves the user is signed in; here it is just a unique-looking string.
- */
+// Create a fake login token (a real app gets this from the server).
 function createToken(user: User): string {
   return "mock-token-" + user.id + "-" + Date.now();
 }
 
-/** Make a new unique id for a newly registered user. */
 function createId(): string {
   return crypto.randomUUID();
 }
 
-/**
- * Sign in with an email and password.
- *
- * @param input The email and password the user typed.
- * @returns The public user and a login token.
- * @throws An error if the email is unknown or the password is wrong.
- */
+// Sign in with an email and password.
 export async function signIn(input: SignInInput): Promise<AuthResult> {
   await delay(400);
 
@@ -89,8 +65,7 @@ export async function signIn(input: SignInInput): Promise<AuthResult> {
     return user.email.toLowerCase() === emailLower;
   });
 
-  // For security we give the SAME message whether the email is unknown or the
-  // password is wrong, so an attacker cannot tell which part was correct.
+  // Same message for unknown email or wrong password (avoids leaking which).
   if (matchingUser === undefined || matchingUser.password !== input.password) {
     throw new Error("Invalid email or password.");
   }
@@ -102,13 +77,7 @@ export async function signIn(input: SignInInput): Promise<AuthResult> {
   };
 }
 
-/**
- * Register a brand new account. New accounts always get the "user" role.
- *
- * @param input The username, email and password for the new account.
- * @returns The public user and a login token.
- * @throws An error if the email is already registered.
- */
+// Register a new account; always gets the "user" role.
 export async function signUp(input: SignUpInput): Promise<AuthResult> {
   await delay(400);
 
@@ -127,7 +96,7 @@ export async function signUp(input: SignUpInput): Promise<AuthResult> {
     id: createId(),
     username: input.username,
     email: input.email,
-    role: "user",
+    role: input.role,
     password: input.password,
   };
 
@@ -141,14 +110,7 @@ export async function signUp(input: SignUpInput): Promise<AuthResult> {
   };
 }
 
-/**
- * Change the password of the currently signed-in user.
- *
- * @param email The email of the signed-in user.
- * @param input The current password and the desired new password.
- * @returns The public user (unchanged fields; password is not returned).
- * @throws An error if the current password is wrong or the new one is invalid.
- */
+// Change the password of the currently signed-in user.
 export async function updatePassword(
   email: string,
   input: UpdatePasswordInput,
@@ -176,7 +138,6 @@ export async function updatePassword(
     throw new Error("The new password must be different from the current one.");
   }
 
-  // Make a copy of the list and update the one user whose password changed.
   const updatedUser: StoredUser = { ...user, password: input.newPassword };
   const updatedUsers = users.slice();
   updatedUsers[index] = updatedUser;

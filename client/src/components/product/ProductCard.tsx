@@ -1,15 +1,4 @@
-/*
- * ProductCard shows one product inside the product grid.
- *
- * It displays the image, name, short description, price, stock, and rating, plus
- * an "Add to cart" button. Administrators additionally see "Edit" and "Delete".
- *
- * This card reads a couple of things straight from the Redux store:
- *   - how many of THIS product are already in the cart (to show "In cart: N")
- *   - whether the current user is an admin (to decide whether to show Edit/Delete)
- * Deleting is handled by the parent page (through the onRequestDelete callback),
- * because the page also needs to refresh the list and fix the pagination.
- */
+// ProductCard shows one product inside the product grid.
 
 import { Link, useNavigate } from "react-router-dom";
 import { Button, Card, Rate, Space, Tag, message } from "antd";
@@ -30,7 +19,6 @@ import { formatCents } from "../../utils/currency";
 
 interface ProductCardProps {
   product: Product;
-  /** Called when an admin clicks "Delete"; the page opens a confirm dialog. */
   onRequestDelete: (product: Product) => void;
 }
 
@@ -40,7 +28,6 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
 
   const isAdmin = useAppSelector(selectIsAdmin);
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
-  // Read the quantity of THIS product currently in the cart.
   const quantityInCart = useAppSelector(function (state) {
     return selectQuantityForProduct(state, product.id);
   });
@@ -48,7 +35,7 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
   const isOutOfStock = product.stock <= 0;
 
   function handleAddToCart() {
-    // Only signed-in users may add to the cart. Guests are sent to sign in.
+    // Only signed-in users may add to the cart; guests are sent to sign in.
     if (!isAuthenticated) {
       message.info("Please sign in to add items to your cart.");
       navigate("/signin");
@@ -56,8 +43,6 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
     }
 
     // Stop if the cart already holds every available unit of this product.
-    // Without this check we would show a misleading "added" message even though
-    // the cart could not actually grow past the stock limit.
     if (quantityInCart >= product.stock) {
       message.warning("No more stock available for " + product.name + ".");
       return;
@@ -78,7 +63,6 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
   return (
     <Card
       hoverable
-      // The cover is the product image, wrapped in a link to the detail page.
       cover={
         <Link to={"/products/" + product.id}>
           <img
@@ -89,12 +73,11 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
         </Link>
       }
     >
-      {/* Product name links to the detail page. */}
       <Link to={"/products/" + product.id}>
         <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>{product.name}</h3>
       </Link>
 
-      {/* A short description, cut off after two lines so cards stay even. */}
+      {/* Description cut off after two lines so cards stay even. */}
       <p
         style={{
           color: "#666",
@@ -130,7 +113,6 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
         )}
       </div>
 
-      {/* Show how many are already in the cart, if any. */}
       {quantityInCart > 0 ? (
         <div style={{ color: "#1677ff", marginBottom: 8 }}>
           In cart: {quantityInCart}

@@ -1,11 +1,4 @@
-/*
- * CartItem shows one line in the shopping cart: image, name, unit price, the
- * quantity control, the line subtotal, and a remove button.
- *
- * This component dispatches the cart changes itself (increase, decrease, set an
- * exact quantity, remove). It reads nothing but the single item it is given
- * through props, which keeps it simple.
- */
+// CartItem shows and manages one line in the shopping cart.
 
 import { Button, Space } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
@@ -28,7 +21,6 @@ interface CartItemProps {
 function CartItem({ item }: CartItemProps) {
   const dispatch = useAppDispatch();
 
-  // The subtotal for this line is unit price times quantity.
   const lineSubtotalCents = item.priceCents * item.quantity;
 
   function handleIncrease() {
@@ -81,7 +73,6 @@ function CartItem({ item }: CartItemProps) {
         onSetQuantity={handleSetQuantity}
       />
 
-      {/* The subtotal for this line. */}
       <div style={{ width: 90, textAlign: "right", fontWeight: 600 }}>
         {formatCents(lineSubtotalCents)}
       </div>

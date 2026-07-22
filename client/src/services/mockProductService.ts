@@ -1,24 +1,4 @@
-/*
- * The mock product service.
- *
- * This file pretends to be a backend server. Every function returns a Promise
- * and waits a short moment before answering, so the rest of the app can show
- * loading spinners and handle errors exactly the way it would with a real API.
- *
- * KEY DESIGN POINT (for switching to a real backend later):
- * Internally this service stores and works with data in the RAW backend shape
- * (the ApiProduct type: snake_case fields, price as a string of cents, a nested
- * meta object). Only at the very end, right before returning, does it convert
- * each ApiProduct into the clean Product shape using mapApiProductToProduct().
- *
- * A future real service will do the same thing: fetch ApiProduct objects over
- * HTTP, then map them with the exact same function. Because both services hand
- * the pages a Product, nothing in the UI has to change when we switch.
- *
- * The data lives in the browser's localStorage. The first time the app runs we
- * copy the MOCK_API_PRODUCTS list into storage; after that every change is
- * saved back so it survives a page refresh.
- */
+// Mock product service backed by localStorage; mimics a real API.
 
 import type {
   ApiProduct,
@@ -32,35 +12,23 @@ import { loadFromStorage, saveToStorage } from "../utils/storage";
 import { isNonNegativeNumber } from "../utils/validation";
 import { mapApiProductToProduct } from "../utils/productMapper";
 
-/*
- * The key under which the product list is saved in localStorage.
- * The ".v2" suffix is used because the stored data shape changed to ApiProduct;
- * a fresh key avoids clashing with any older data a browser might still have.
- */
+// ".v2" suffix avoids clashing with older data using a different shape.
 const STORAGE_KEY = "pms.products.v2";
 
-/** How many products to show per page if the caller does not say. */
 const DEFAULT_PAGE_SIZE = 8;
 
-/**
- * Wait for a number of milliseconds, then continue.
- * This fakes the small delay a real network request would have.
- */
+// Fake the small delay of a network request.
 function delay(milliseconds: number): Promise<void> {
   return new Promise(function (resolve) {
     window.setTimeout(resolve, milliseconds);
   });
 }
 
-/**
- * Read the full product list (in raw backend shape) from storage. If nothing is
- * saved yet, seed the storage with the mock products and return those.
- */
+// Read all products from storage, seeding from the mock list on first run.
 function readAllApiProducts(): ApiProduct[] {
   const saved = loadFromStorage<ApiProduct[]>(STORAGE_KEY);
 
   if (saved === null) {
-    // First run: copy the mock data into storage so future edits persist.
     saveToStorage(STORAGE_KEY, MOCK_API_PRODUCTS);
     return MOCK_API_PRODUCTS;
   }
@@ -68,15 +36,11 @@ function readAllApiProducts(): ApiProduct[] {
   return saved;
 }
 
-/** Save the full product list (raw backend shape) back to storage. */
 function writeAllApiProducts(products: ApiProduct[]): void {
   saveToStorage(STORAGE_KEY, products);
 }
 
-/**
- * Work out the next product id, mimicking how a database hands out new ids:
- * take the largest existing numeric id and add one.
- */
+// Next id is the largest existing numeric id plus one.
 function createNextId(products: ApiProduct[]): string {
   let maxId = 0;
   for (const product of products) {
@@ -88,13 +52,7 @@ function createNextId(products: ApiProduct[]): string {
   return String(maxId + 1);
 }
 
-/**
- * Get a page of products, optionally filtered by search text and category.
- *
- * @param query Search text, category, page number and page size (all optional).
- * @returns The products for the requested page (as clean Product objects) plus
- *          the total count.
- */
+// Get a page of products, optionally filtered by search text and category.
 export async function getProducts(query: ProductQuery = {}): Promise<ProductPage> {
   await delay(300);
 
@@ -103,7 +61,7 @@ export async function getProducts(query: ProductQuery = {}): Promise<ProductPage
 
   let apiProducts = readAllApiProducts();
 
-  // Step 1: filter by the search text (matches name or description).
+  // Filter by search text (matches name or description).
   if (query.search !== undefined && query.search.trim() !== "") {
     const searchLower = query.search.trim().toLowerCase();
     apiProducts = apiProducts.filter(function (product) {
@@ -115,23 +73,20 @@ export async function getProducts(query: ProductQuery = {}): Promise<ProductPage
     });
   }
 
-  // Step 2: filter by category (unless "All" / empty was requested).
+  // Filter by category (unless "All" / empty was requested).
   if (query.category !== undefined && query.category !== "") {
     apiProducts = apiProducts.filter(function (product) {
       return product.category === query.category;
     });
   }
 
-  // The total count is measured AFTER filtering but BEFORE paginating,
-  // because the pagination control needs to know how many matches there are.
+  // Total is counted after filtering but before paginating.
   const total = apiProducts.length;
 
-  // Step 3: cut out just the slice of products for the requested page.
   const startIndex = (page - 1) * pageSize;
   const endIndex = startIndex + pageSize;
   const pageApiProducts = apiProducts.slice(startIndex, endIndex);
 
-  // Step 4: convert each raw product into the clean Product shape the app uses.
   const items = pageApiProducts.map(function (apiProduct) {
     return mapApiProductToProduct(apiProduct);
   });
@@ -144,13 +99,7 @@ export async function getProducts(query: ProductQuery = {}): Promise<ProductPage
   };
 }
 
-/**
- * Get a single product by its id.
- *
- * @param id The id of the product to find.
- * @returns The matching product (in the app's Product shape).
- * @throws An error if no product has that id.
- */
+// Get a single product by its id; throws if not found.
 export async function getProductById(id: string): Promise<Product> {
   await delay(300);
 
@@ -166,10 +115,7 @@ export async function getProductById(id: string): Promise<Product> {
   return mapApiProductToProduct(found);
 }
 
-/**
- * Make sure the product data is valid before saving it.
- * Throws a clear error if something is wrong.
- */
+// Validate product data before saving; throws on invalid input.
 function validateProductInput(
   input: ProductInput,
   allProducts: ApiProduct[],
@@ -183,7 +129,7 @@ function validateProductInput(
     throw new Error("Stock cannot be negative.");
   }
 
-  // The SKU must be unique. Look for any OTHER product that already uses it.
+  // SKU must be unique across all other products.
   const skuAlreadyUsed = allProducts.some(function (product) {
     const isDifferentProduct = product.product_id !== idBeingEdited;
     const hasSameSku = product.sku.toLowerCase() === input.sku.toLowerCase();
@@ -195,16 +141,7 @@ function validateProductInput(
   }
 }
 
-/**
- * Create a brand new product.
- *
- * The form gives us a ProductInput (clean shape); here we build a full
- * ApiProduct (backend shape) to store, then map it back to a Product to return.
- *
- * @param input The new product's data (no id yet).
- * @returns The created product.
- * @throws An error if the data is invalid or the SKU is already taken.
- */
+// Create a brand new product.
 export async function createProduct(input: ProductInput): Promise<Product> {
   await delay(300);
 
@@ -217,13 +154,12 @@ export async function createProduct(input: ProductInput): Promise<Product> {
     description: input.description,
     sku: input.sku,
     category: input.category,
-    // The app stores price as a number of cents; the backend shape wants a string.
+    // Backend shape wants price as a string of cents.
     price_amount: String(input.priceCents),
     inventory: input.stock,
     image_url: input.imageUrl,
     meta: {
-      // The form does not collect these extra fields yet, so we use sensible
-      // defaults. A real backend may fill them in itself.
+      // Defaults for fields the form does not collect yet.
       brand: "",
       specs: { model: "", warranty_months: 0 },
       rating: input.rating,
@@ -232,24 +168,14 @@ export async function createProduct(input: ProductInput): Promise<Product> {
     },
   };
 
-  // Put the new product at the FRONT of the list so it is easy to spot.
+  // Put the new product at the front of the list.
   const updatedProducts = [newApiProduct, ...apiProducts];
   writeAllApiProducts(updatedProducts);
 
   return mapApiProductToProduct(newApiProduct);
 }
 
-/**
- * Update an existing product.
- *
- * We spread the existing record first so that fields the form does not manage
- * (brand, specs, featured) are kept, then overwrite the fields it does manage.
- *
- * @param id The id of the product to update.
- * @param input The new data for the product.
- * @returns The updated product.
- * @throws An error if the product does not exist or the data is invalid.
- */
+// Update an existing product, preserving fields the form does not manage.
 export async function updateProduct(
   id: string,
   input: ProductInput,
@@ -285,7 +211,6 @@ export async function updateProduct(
     },
   };
 
-  // Make a copy of the list and replace the one item that changed.
   const updatedProducts = apiProducts.slice();
   updatedProducts[index] = updatedApiProduct;
   writeAllApiProducts(updatedProducts);
@@ -293,12 +218,7 @@ export async function updateProduct(
   return mapApiProductToProduct(updatedApiProduct);
 }
 
-/**
- * Delete a product.
- *
- * @param id The id of the product to delete.
- * @throws An error if the product does not exist.
- */
+// Delete a product; throws if it does not exist.
 export async function deleteProduct(id: string): Promise<void> {
   await delay(300);
 
@@ -317,20 +237,7 @@ export async function deleteProduct(id: string): Promise<void> {
   writeAllApiProducts(remainingProducts);
 }
 
-/**
- * Reduce the stock of the purchased products (called at checkout).
- *
- * For each item bought, subtract the quantity from that product's inventory
- * (never letting it drop below 0). When an item's inventory reaches 0 it will
- * automatically show as "Out of stock" on the product pages, because those
- * pages already treat stock <= 0 as out of stock.
- *
- * In a real backend this would be a "place order" request, and the server would
- * be the one to reduce the stock. Here we do it in the mock so the demo behaves
- * realistically.
- *
- * @param purchases The products and quantities that were bought.
- */
+// Reduce stock for purchased products at checkout (never below 0).
 export async function reduceStockForPurchase(
   purchases: { productId: string; quantity: number }[],
 ): Promise<void> {
@@ -339,17 +246,14 @@ export async function reduceStockForPurchase(
   const apiProducts = readAllApiProducts();
 
   const updatedProducts = apiProducts.map(function (product) {
-    // Find out whether this product was part of the purchase.
     const purchase = purchases.find(function (item) {
       return item.productId === product.product_id;
     });
 
-    // Not bought: leave it unchanged.
     if (purchase === undefined) {
       return product;
     }
 
-    // Bought: subtract the quantity, but never go below 0.
     let newInventory = product.inventory - purchase.quantity;
     if (newInventory < 0) {
       newInventory = 0;

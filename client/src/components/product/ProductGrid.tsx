@@ -1,14 +1,4 @@
-/*
- * ProductGrid arranges product cards in a responsive grid.
- *
- * We use Ant Design's Row and Col. The Col "span" values change with the screen
- * size so the layout is responsive:
- *   - xs (phones)  : span 24  -> 1 card per row  (24 / 24)
- *   - sm (tablets) : span 12  -> 2 cards per row (24 / 12)
- *   - md (laptops) : span 8   -> 3 cards per row (24 / 8)
- *   - lg (desktops): span 6   -> 4 cards per row (24 / 6)
- * (Ant Design divides every row into 24 equal columns.)
- */
+// ProductGrid arranges product cards in a responsive grid (1/2/3/4 per row).
 
 import { Col, Row } from "antd";
 import type { Product } from "../../types/product";

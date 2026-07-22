@@ -1,12 +1,8 @@
-/*
- * A centered loading spinner shown while we wait for data (for example while the
- * product service is "fetching" products).
- */
+// A centered loading spinner shown while waiting for data.
 
 import { Spin } from "antd";
 
 interface LoadingSpinnerProps {
-  /** Optional text shown under the spinner. */
   message?: string;
 }
 

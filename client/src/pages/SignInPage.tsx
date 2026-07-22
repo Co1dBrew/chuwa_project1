@@ -1,9 +1,4 @@
-/*
- * SignInPage renders the reusable AuthForm in "signin" mode and connects it to
- * the Redux auth thunk. The form handles the layout and validation; this page
- * handles what to do with the values (dispatch the thunk) and where to go on
- * success.
- */
+// Renders AuthForm in "signin" mode and wires it to the Redux auth thunk.
 
 import { useEffect } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
@@ -26,7 +21,7 @@ function SignInPage() {
   const error = useAppSelector(selectAuthError);
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
 
-  // Clear any leftover error from a previous visit when this page opens.
+  // Clear any leftover error from a previous visit.
   useEffect(
     function () {
       dispatch(clearAuthError());
@@ -34,7 +29,6 @@ function SignInPage() {
     [dispatch],
   );
 
-  // If the user is already signed in, there is no reason to be here.
   if (isAuthenticated) {
     return <Navigate to="/products" replace />;
   }
@@ -45,8 +39,7 @@ function SignInPage() {
       password: values.password ?? "",
     };
 
-    // dispatch returns a promise. .unwrap() makes it resolve on success and
-    // throw on failure, so we can react with .then / .catch.
+    // .unwrap() resolves on success and throws on failure.
     dispatch(signInThunk(input))
       .unwrap()
       .then(function () {
@@ -54,8 +47,7 @@ function SignInPage() {
         navigate("/products");
       })
       .catch(function () {
-        // The error message is already stored in Redux and shown by AuthForm,
-        // so there is nothing extra to do here.
+        // The error is stored in Redux and shown by AuthForm.
       });
   }
 

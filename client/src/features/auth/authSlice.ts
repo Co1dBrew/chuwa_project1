@@ -1,21 +1,5 @@
-/*
- * The authentication "slice" of the Redux store.
- *
- * A slice is one section of the global state plus the functions that change it.
- * This slice owns everything about the logged-in user:
- *   - who is currently signed in (user)
- *   - their login token
- *   - the status of the current request (idle / loading / succeeded / failed)
- *   - any error message to show the user
- *
- * ASYNC THUNKS:
- * Signing in, signing up and updating the password all talk to the (mock)
- * server, which takes time. We use createAsyncThunk for these. Redux Toolkit
- * automatically gives each thunk three states we can react to:
- *   - pending   : the request has started (show a loading spinner)
- *   - fulfilled : the request succeeded (save the data)
- *   - rejected  : the request failed (show an error message)
- */
+// The authentication slice of the Redux store: the signed-in user, token,
+// request status and error message.
 
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
@@ -47,10 +31,7 @@ interface PersistedAuth {
   token: string | null;
 }
 
-/**
- * Build the starting state. If the user logged in during a previous visit, we
- * restore them from localStorage so a page refresh keeps them signed in.
- */
+/** Build the starting state, restoring the saved user from localStorage if any. */
 function buildInitialState(): AuthState {
   const saved = loadFromStorage<PersistedAuth>(AUTH_STORAGE_KEY);
 
@@ -62,18 +43,11 @@ function buildInitialState(): AuthState {
   };
 }
 
-/* ------------------------------------------------------------------ */
-/* Async thunks                                                        */
-/* ------------------------------------------------------------------ */
-
-/**
- * Sign in. On success it returns the user and token; on failure it returns a
- * rejected value containing the error message so the UI can display it.
- */
+/** Sign in; on failure rejects with an error message for the UI. */
 export const signInThunk = createAsyncThunk<
-  AuthResult, // the type returned on success
-  SignInInput, // the argument passed in
-  { rejectValue: string } // the type returned on failure
+  AuthResult,
+  SignInInput,
+  { rejectValue: string }
 >("auth/signIn", async function (input, thunkApi) {
   try {
     const result = await authService.signIn(input);
@@ -105,7 +79,6 @@ export const updatePasswordThunk = createAsyncThunk<
   UpdatePasswordInput,
   { state: RootState; rejectValue: string }
 >("auth/updatePassword", async function (input, thunkApi) {
-  // Find out who is currently signed in by reading the store.
   const state = thunkApi.getState();
   const currentUser = state.auth.user;
 
@@ -123,14 +96,9 @@ export const updatePasswordThunk = createAsyncThunk<
   }
 });
 
-/* ------------------------------------------------------------------ */
-/* The slice itself                                                    */
-/* ------------------------------------------------------------------ */
-
 const authSlice = createSlice({
   name: "auth",
   initialState: buildInitialState(),
-  // "reducers" are the plain (non-async) ways to change this state.
   reducers: {
     /** Sign the user out and clear everything. */
     logout(state) {
@@ -139,15 +107,14 @@ const authSlice = createSlice({
       state.status = "idle";
       state.error = null;
     },
-    /** Clear any error message (for example when the user opens a form again). */
+    /** Clear any error message. */
     clearAuthError(state) {
       state.error = null;
     },
   },
-  // "extraReducers" react to the async thunks above.
   extraReducers: function (builder) {
     builder
-      // ----- Sign in -----
+      // Sign in
       .addCase(signInThunk.pending, function (state) {
         state.status = "loading";
         state.error = null;
@@ -165,7 +132,7 @@ const authSlice = createSlice({
         state.error = action.payload ?? "Sign in failed.";
       })
 
-      // ----- Sign up -----
+      // Sign up
       .addCase(signUpThunk.pending, function (state) {
         state.status = "loading";
         state.error = null;
@@ -183,7 +150,7 @@ const authSlice = createSlice({
         state.error = action.payload ?? "Sign up failed.";
       })
 
-      // ----- Update password -----
+      // Update password
       .addCase(updatePasswordThunk.pending, function (state) {
         state.status = "loading";
         state.error = null;
@@ -192,7 +159,6 @@ const authSlice = createSlice({
         updatePasswordThunk.fulfilled,
         function (state, action: PayloadAction<User>) {
           state.status = "succeeded";
-          // The user's basic info might have changed; keep it in sync.
           state.user = action.payload;
         },
       )
@@ -203,8 +169,6 @@ const authSlice = createSlice({
   },
 });
 
-// Export the plain action creators so components can dispatch them.
 export const { logout, clearAuthError } = authSlice.actions;
 
-// Export the reducer so the store can use it.
 export default authSlice.reducer;

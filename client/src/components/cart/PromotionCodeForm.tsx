@@ -1,14 +1,5 @@
-/*
- * PromotionCodeForm lets the shopper apply a promotion (discount) code.
- *
- * It reads the currently applied code and any error message from the store, and
- * dispatches actions to apply or remove a code. Valid demo codes are:
- *   - SAVE10   (10% off)
- *   - WELCOME5 ($5 off)
- *
- * When a valid code is applied we show a success message; when an invalid code
- * is entered we show the error the slice produced.
- */
+// PromotionCodeForm lets the shopper apply or remove a discount code.
+// Valid demo codes: SAVE10 (10% off), WELCOME5 ($5 off).
 
 import { useEffect, useState } from "react";
 import { Alert, Button, Input, Space } from "antd";
@@ -26,15 +17,12 @@ import {
 function PromotionCodeForm() {
   const dispatch = useAppDispatch();
 
-  // Local state: what the user is currently typing.
   const [text, setText] = useState("");
 
-  // From the store: the applied code and any error.
   const appliedCode = useAppSelector(selectPromotionCode);
   const promotionError = useAppSelector(selectPromotionError);
 
-  // When this form opens, clear any leftover "invalid code" error from before,
-  // so the user does not see a stale error they did not just cause.
+  // Clear any leftover error when the form opens so no stale message shows.
   useEffect(
     function () {
       dispatch(clearPromotionError());
@@ -51,7 +39,6 @@ function PromotionCodeForm() {
     setText("");
   }
 
-  // If a code is already applied, show the success state with a remove button.
   const hasAppliedCode = appliedCode !== "";
 
   return (
@@ -85,7 +72,6 @@ function PromotionCodeForm() {
             </Button>
           </Space.Compact>
 
-          {/* Show the error only when there is one. */}
           {promotionError !== null ? (
             <Alert type="error" showIcon message={promotionError} />
           ) : null}

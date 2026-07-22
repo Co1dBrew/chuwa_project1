@@ -1,10 +1,4 @@
-/*
- * Selectors for the cart slice.
- *
- * These read useful, ready-to-display values out of the cart state. Because
- * every component uses these same selectors, the header badge, product pages
- * and cart page always show numbers that agree with one another.
- */
+// Selectors for the cart slice.
 
 import type { RootState } from "../../app/store";
 import type { CartItem } from "../../types/cart";
@@ -14,10 +8,7 @@ export function selectCartItems(state: RootState): CartItem[] {
   return state.cart.items;
 }
 
-/**
- * The total number of individual units in the cart (used for the header badge).
- * Example: 2 headphones + 3 mugs => 5.
- */
+/** The total number of individual units in the cart (for the header badge). */
 export function selectCartItemCount(state: RootState): number {
   let count = 0;
   for (const item of state.cart.items) {
@@ -26,13 +17,7 @@ export function selectCartItemCount(state: RootState): number {
   return count;
 }
 
-/**
- * How many of ONE specific product are in the cart.
- * Used on the product list and detail pages to show "In cart: 2".
- *
- * @param state The whole Redux state.
- * @param productId The product to look up.
- */
+/** How many of one specific product are in the cart. */
 export function selectQuantityForProduct(state: RootState, productId: string): number {
   const item = state.cart.items.find(function (current) {
     return current.productId === productId;
@@ -60,7 +45,7 @@ export function selectTotalCents(state: RootState): number {
   const subtotal = selectSubtotalCents(state);
   const total = subtotal - state.cart.discountCents;
 
-  // Safety check: the total should never drop below zero.
+  // Never drop below zero.
   return total > 0 ? total : 0;
 }
 

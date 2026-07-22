@@ -1,18 +1,4 @@
-/*
- * ProductListPage: the main page that lists products.
- *
- * It brings several pieces together:
- *   - a search box and a category filter
- *   - a responsive grid of product cards
- *   - pagination
- *   - loading / empty / error states
- *   - an "Add product" button for admins
- *   - delete handling that keeps the pagination correct
- *
- * The product data is loaded from the product service (our mock backend). We
- * keep page-only state (search text, current page, etc.) in local useState,
- * NOT in Redux, because no other page needs it.
- */
+// Lists products with search, category filter, and pagination.
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -31,38 +17,27 @@ import EmptyState from "../components/common/EmptyState";
 import ErrorMessage from "../components/common/ErrorMessage";
 import { PRODUCT_CATEGORIES } from "../mocks/products";
 
-/*
- * How many products to show per page.
- * (This is the single value to change if you want, say, 6 per page instead.)
- */
 const PRODUCTS_PER_PAGE = 8;
 
 function ProductListPage() {
   const isAdmin = useAppSelector(selectIsAdmin);
 
-  // ----- Data loaded from the service -----
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ----- The current query (search / category / page) -----
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(1);
 
-  // Bumping this number forces the products to reload (used after a delete).
+  // Bumping this forces a reload (used after a delete).
   const [refreshCounter, setRefreshCounter] = useState(0);
 
-  // ----- Delete dialog state -----
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  /*
-   * Load the products whenever the query changes (or we ask for a refresh).
-   * The inner async function is needed because a useEffect callback itself
-   * cannot be marked "async".
-   */
+  // Reload products whenever the query changes or we ask for a refresh.
   useEffect(
     function () {
       let isCurrent = true; // guards against setting state after unmount
@@ -100,15 +75,12 @@ function ProductListPage() {
 
       loadProducts();
 
-      // Cleanup: if the effect re-runs or the page unmounts, ignore old results.
       return function () {
         isCurrent = false;
       };
     },
     [search, category, page, refreshCounter],
   );
-
-  // ----- Event handlers -----
 
   function handleSearch(term: string) {
     setSearch(term);
@@ -121,7 +93,6 @@ function ProductListPage() {
   }
 
   function handleRetry() {
-    // Reload by bumping the refresh counter.
     setRefreshCounter(function (previous) {
       return previous + 1;
     });
@@ -145,8 +116,7 @@ function ProductListPage() {
       await deleteProduct(productToDelete.id);
       message.success(productToDelete.name + " was deleted.");
 
-      // Pagination fix: if we just deleted the last item on a page that is not
-      // the first page, step back one page so we do not land on an empty page.
+      // If we deleted the last item on a non-first page, step back one page.
       if (products.length === 1 && page > 1) {
         setPage(page - 1);
       } else {
@@ -162,7 +132,6 @@ function ProductListPage() {
     }
   }
 
-  // ----- What to render in the main area -----
   function renderContent() {
     if (loading) {
       return <LoadingSpinner message="Loading products..." />;

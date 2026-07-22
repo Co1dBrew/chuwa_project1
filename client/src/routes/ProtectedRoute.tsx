@@ -1,12 +1,4 @@
-/*
- * ProtectedRoute guards pages that require the user to be signed in.
- *
- * We wrap a page with it like this:
- *   <ProtectedRoute><CartPage /></ProtectedRoute>
- *
- * If nobody is signed in, it sends the user to the sign-in page instead of
- * showing the protected page. Otherwise it simply shows the page (its children).
- */
+// Guards pages that require sign-in, redirecting to /signin when not authenticated.
 
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";

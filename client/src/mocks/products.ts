@@ -1,21 +1,5 @@
-/*
- * Mock (fake) product data.
- *
- * IMPORTANT: this data is written in the EXACT shape the backend database
- * returns (the ApiProduct type). That is on purpose: when a real backend is
- * added later, the mock service can be replaced with real HTTP calls and the
- * data flowing through the app keeps the same structure, so nothing else needs
- * to change.
- *
- * Reminders about the backend shape:
- *   - price_amount is a STRING holding cents ("1975" means $19.75).
- *   - "inventory" is the stock count.
- *   - rating lives inside "meta".
- *
- * The image_url values here point at a free placeholder image service so the
- * pictures load during the mock demo. The real backend will return its own
- * image URLs instead.
- */
+// Mock product data, shaped exactly like the backend's ApiProduct type.
+// Note: price_amount is a string of cents ("1975" = $19.75).
 
 import type { ApiProduct } from "../types/product";
 
@@ -230,13 +214,7 @@ export const MOCK_API_PRODUCTS: ApiProduct[] = [
   },
 ];
 
-/**
- * The list of categories used by the product filter dropdown.
- * We build it from the mock products so it always stays in sync with the data.
- *
- * "new Set(...)" removes duplicate category names, and the spread operator
- * "[...set]" turns the Set back into a normal array.
- */
+// Unique category list for the filter dropdown, derived from the mock products.
 export const PRODUCT_CATEGORIES: string[] = [
   ...new Set(
     MOCK_API_PRODUCTS.map(function (product) {
