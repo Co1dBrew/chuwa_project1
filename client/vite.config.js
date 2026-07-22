@@ -1,12 +1,15 @@
 import process from "node:process";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
 
-// https://vite.dev/config/
+// Vite build configuration.
+// See https://vite.dev/config/ for all available options.
 export default defineConfig({
-  plugins: [tailwindcss(), react()],
+  // The React plugin adds support for JSX/TSX and fast refresh during development.
+  plugins: [react()],
   server: {
+    // The port the development server runs on.
+    // If an environment variable named PORT is provided, use it; otherwise use 5173.
     port: Number(process.env.PORT) || 5173,
   },
 });
