@@ -2,6 +2,9 @@
 
 body {
   margin: 0;
+  /* Inter is loaded in index.html; the rest are fallbacks while it loads. */
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
 }
 
 /* Constrains page content so it does not stretch across the whole screen. */
