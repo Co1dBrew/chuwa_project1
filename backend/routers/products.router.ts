@@ -6,9 +6,9 @@ import {
   createProduct,
   deleteProduct,
   getProductById,
-  listProductsPaged,
   isForeignKeyViolation,
   isUniqueViolation,
+  listProductsPaged,
   updateProduct,
   updateProductImageKey,
 } from "../db.js";
@@ -44,6 +44,7 @@ async function requireOwnedProduct(productId: number, merchantId: number) {
 }
 
 const DEFAULT_PAGE_SIZE = 8;
+const MAX_PAGE_SIZE = 100;
 
 const QuerySchema = z.object({
   search: z.string().trim().optional(),
@@ -54,12 +55,7 @@ const QuerySchema = z.object({
     .max(MAX_POSTGRES_INTEGER)
     .optional(),
   page: z.coerce.number().int().positive().max(MAX_POSTGRES_INTEGER).optional(),
-  pageSize: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(MAX_POSTGRES_INTEGER)
-    .optional(),
+  pageSize: z.coerce.number().int().positive().max(MAX_PAGE_SIZE).optional(),
 });
 
 router.get("/", async (req, res) => {
@@ -150,6 +146,26 @@ const optionalMeta = z.preprocess((value) => {
   }
 }, z.record(z.string(), z.unknown()).optional());
 
+function throwProductWriteError(error: unknown): never {
+  if (isUniqueViolation(error)) {
+    throw new AppError(
+      409,
+      "SKU_ALREADY_EXISTS",
+      "A product with this SKU already exists",
+    );
+  }
+
+  if (isForeignKeyViolation(error)) {
+    throw new AppError(
+      422,
+      "INVALID_CATEGORY",
+      "The selected category does not exist",
+    );
+  }
+
+  throw error;
+}
+
 export const ProductInput = z.object({
   name: z.string().trim().min(1).max(200),
   description: optionalString,
@@ -159,6 +175,11 @@ export const ProductInput = z.object({
   inventory: optionalInteger,
   meta: optionalMeta,
 });
+
+const ProductUpdateInput = ProductInput.partial().refine(
+  (input) => Object.values(input).some((value) => value !== undefined),
+  "Provide at least one field to update",
+);
 
 router.post(
   "/",
@@ -183,23 +204,7 @@ router.post(
         await imageStorage.delete(imageKey);
       }
 
-      if (isUniqueViolation(error)) {
-        throw new AppError(
-          409,
-          "SKU_ALREADY_EXISTS",
-          "A product with this SKU already exists",
-        );
-      }
-
-      if (isForeignKeyViolation(error)) {
-        throw new AppError(
-          422,
-          "INVALID_CATEGORY",
-          "The selected category does not exist",
-        );
-      }
-
-      throw error;
+      throwProductWriteError(error);
     }
 
     res
@@ -241,34 +246,15 @@ router.patch(
     const productId = parse(ProductIdSchema, req.params.productId);
     const merchantId = req.auth!.userId;
 
-    // 404 if it does not exist, 403 if it belongs to another merchant.
     await requireOwnedProduct(productId, merchantId);
-
-    // Reuse the same field validation as product creation.
-    const productInput = parse(ProductInput, req.body);
+    const productInput = parse(ProductUpdateInput, req.body);
 
     let product: Product | undefined;
 
     try {
       product = await updateProduct(productId, merchantId, productInput);
     } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new AppError(
-          409,
-          "SKU_ALREADY_EXISTS",
-          "A product with this SKU already exists",
-        );
-      }
-
-      if (isForeignKeyViolation(error)) {
-        throw new AppError(
-          422,
-          "INVALID_CATEGORY",
-          "The selected category does not exist",
-        );
-      }
-
-      throw error;
+      throwProductWriteError(error);
     }
 
     if (!product) {

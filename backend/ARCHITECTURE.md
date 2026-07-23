@@ -65,6 +65,9 @@ PostgreSQL outage or a programming error, are logged and returned as a safe
   and merchants from owning carts at the database level.
 - Product responses contain `category_id`; clients fetch `/categories` to map
   an ID to a display name.
+- Product lists use offset pagination (`page` and `pageSize`) with a total
+  count, which fits the desktop page navigation UI. The older cursor query is
+  retained for possible future infinite-scroll use.
 - Product and avatar images store opaque keys; the storage adapter determines
   where their bytes live. API responses expose `image_url` and `avatar_url`
   instead of those keys.

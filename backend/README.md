@@ -42,7 +42,7 @@ in `uploads/` and publicly served from `/media`.
 
 ## Routes
 
-- `GET /products?limit=&cursor=`
+- `GET /products?search=&category_id=&page=&pageSize=`
 - `GET /products/:productId`
 - `POST /products` — merchant only; optional multipart `image` field
 - `DELETE /products/:productId` — merchant owner only
