@@ -338,6 +338,20 @@ export async function updateUserAvatarKey(
   return result.rows[0];
 }
 
+export async function updateUserPasswordHash(
+  userId: number,
+  passwordHash: string,
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE users
+     SET password_hash = $2
+     WHERE user_id = $1`,
+    [userId, passwordHash],
+  );
+
+  return result.rowCount === 1;
+}
+
 export async function getUserById(id: number): Promise<User | undefined> {
   const result = await pool.query<User>(
     `SELECT ${USER_COLUMNS}

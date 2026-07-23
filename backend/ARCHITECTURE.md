@@ -123,6 +123,8 @@ expiry. This is intentionally simple; add database-backed refresh sessions if
 per-token revocation, rotation, or device management becomes necessary.
 `authenticate` verifies token signature, issuer, audience, token type, expiry,
 and a valid integer user ID before protected routes receive it.
+Password changes verify the current password and update its Argon2 hash; existing
+stateless refresh tokens remain valid until expiry.
 `requireRole` then loads the current user role from the database, so deleted
 accounts receive `401` and role changes take effect immediately. Cart routes
 require customers; product creation requires merchants; product-image updates

@@ -16,6 +16,7 @@ import {
   getUserByUsername,
   isUniqueViolation,
   updateUserAvatarKey,
+  updateUserPasswordHash,
 } from "../db.js";
 import { AppError } from "../error.js";
 import { imageStorage } from "../images/provider.js";
@@ -146,6 +147,38 @@ const password = z
   .string()
   .min(8, { error: "Password must be at least 8 characters." })
   .max(128, { error: "Password must be at most 128 characters." });
+
+const PasswordChangeInput = z
+  .object({ current_password: password, new_password: password })
+  .refine((input) => input.current_password !== input.new_password, {
+    error: "New password must be different from the current password.",
+  });
+
+router.patch("/me/password", authenticate, async (req, res) => {
+  const user = await getUserById(req.auth!.userId);
+  if (!user) {
+    throw new AppError(401, "UNAUTHENTICATED", "Authentication required");
+  }
+
+  const input = parse(PasswordChangeInput, req.body);
+  if (!(await verifyPassword(user.password_hash, input.current_password))) {
+    throw new AppError(
+      400,
+      "INVALID_CURRENT_PASSWORD",
+      "Current password is incorrect",
+    );
+  }
+
+  const updated = await updateUserPasswordHash(
+    user.user_id,
+    await hashPassword(input.new_password),
+  );
+  if (!updated) {
+    throw new AppError(401, "UNAUTHENTICATED", "Authentication required");
+  }
+
+  res.status(204).end();
+});
 
 export const UserInput = z.object({
   username,

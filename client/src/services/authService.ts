@@ -63,6 +63,19 @@ export async function signOut(): Promise<void> {
   });
 }
 
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await request<void>("/users/me/password", {
+    method: "PATCH",
+    body: {
+      current_password: currentPassword,
+      new_password: newPassword,
+    },
+  });
+}
+
 export async function signUp(input: SignUpInput): Promise<AuthResult> {
   await request<ApiUser>("/users/registration", {
     method: "POST",

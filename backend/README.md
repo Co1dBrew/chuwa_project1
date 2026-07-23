@@ -50,6 +50,7 @@ in `uploads/` and publicly served from `/media`.
 - `GET /categories`
 - `GET /media/:scope/:filename` — public local image file
 - `GET /users/me` (requires `Authorization: Bearer <accessToken>`)
+- `PATCH /users/me/password` — verifies the current password and updates it
 - `POST /users/me/avatar` — multipart field `image`; requires auth
 - `POST /products/:productId/image` — merchant owner only; multipart field `image`
 - `GET /cart-items` — customer only
