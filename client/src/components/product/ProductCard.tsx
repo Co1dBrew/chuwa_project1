@@ -1,7 +1,7 @@
 // ProductCard shows one product inside the product grid.
 
 import { Link, useNavigate } from "react-router-dom";
-import { Button, Card, Rate, Space, Tag, message } from "antd";
+import { Button, Card, Rate, Space, Tag, Tooltip, message } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -14,6 +14,7 @@ import { selectQuantityForProduct } from "../../features/cart/cartSelectors";
 import {
   selectIsMerchant,
   selectIsAuthenticated,
+  selectCurrentUser,
 } from "../../features/auth/authSelectors";
 import { formatCents } from "../../utils/currency";
 import { PLACEHOLDER_IMAGE, handleImageError } from "../../utils/imagePlaceholder";
@@ -29,11 +30,15 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
 
   const isMerchant = useAppSelector(selectIsMerchant);
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
+  const currentUser = useAppSelector(selectCurrentUser);
   const quantityInCart = useAppSelector(function (state) {
     return selectQuantityForProduct(state, product.id);
   });
 
   const isOutOfStock = product.stock <= 0;
+  // UX-only: direct edit URLs remain possible; the backend enforces ownership.
+  const canManageProduct = currentUser?.id === product.merchantId;
+  const ownershipMessage = "You can only manage your own products.";
 
   function handleAddToCart() {
     // Only signed-in users may add to the cart; guests are sent to sign in.
@@ -147,12 +152,31 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
 
         {isMerchant ? (
           <Space style={{ width: "100%" }} size="small">
-            <Button icon={<EditOutlined />} onClick={handleEdit} block>
-              Edit
-            </Button>
-            <Button icon={<DeleteOutlined />} onClick={handleDelete} danger block>
-              Delete
-            </Button>
+            <Tooltip title={canManageProduct ? undefined : ownershipMessage}>
+              <span style={{ flex: 1 }}>
+                <Button
+                  icon={<EditOutlined />}
+                  onClick={handleEdit}
+                  disabled={!canManageProduct}
+                  block
+                >
+                  Edit
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title={canManageProduct ? undefined : ownershipMessage}>
+              <span style={{ flex: 1 }}>
+                <Button
+                  icon={<DeleteOutlined />}
+                  onClick={handleDelete}
+                  disabled={!canManageProduct}
+                  danger
+                  block
+                >
+                  Delete
+                </Button>
+              </span>
+            </Tooltip>
           </Space>
         ) : null}
       </Space>

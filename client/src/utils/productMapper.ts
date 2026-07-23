@@ -21,6 +21,7 @@ export function mapApiProductToProduct(
 
   return {
     id: String(apiProduct.product_id),
+    merchantId: String(apiProduct.merchant_id),
     name: apiProduct.name,
     description: apiProduct.description ?? "",
     sku: apiProduct.sku,

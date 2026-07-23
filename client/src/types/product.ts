@@ -3,6 +3,7 @@
 /** A single product in the store. */
 export interface Product {
   id: string;
+  merchantId: string;
   name: string;
   description: string;
   /** Price in whole cents. Example: 1299 means $12.99. */
