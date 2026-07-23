@@ -1,4 +1,4 @@
-// Create or edit a product with the reusable ProductForm (admin-only routes).
+// Create or edit a product with the reusable ProductForm (merchant-only routes).
 
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";

@@ -7,7 +7,7 @@ import { PlusOutlined } from "@ant-design/icons";
 import type { Product } from "../types/product";
 import { deleteProduct, getProducts } from "../services/productService";
 import { useAppSelector } from "../app/hooks";
-import { selectIsAdmin } from "../features/auth/authSelectors";
+import { selectIsMerchant } from "../features/auth/authSelectors";
 import ProductGrid from "../components/product/ProductGrid";
 import ProductSearchBar from "../components/product/ProductSearchBar";
 import ProductFilters from "../components/product/ProductFilters";
@@ -20,7 +20,7 @@ import { getCategories } from "../services/categoryService";
 const PRODUCTS_PER_PAGE = 8;
 
 function ProductListPage() {
-  const isAdmin = useAppSelector(selectIsAdmin);
+  const isMerchant = useAppSelector(selectIsMerchant);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -172,7 +172,7 @@ function ProductListPage() {
 
   return (
     <div>
-      {/* Top row: page title and (for admins) the Add product button. */}
+      {/* Top row: page title and merchant add-product action. */}
       <div
         style={{
           display: "flex",
@@ -184,7 +184,7 @@ function ProductListPage() {
         }}
       >
         <h1 style={{ margin: 0 }}>Products</h1>
-        {isAdmin ? (
+        {isMerchant ? (
           <Link to="/products/new">
             <Button type="primary" icon={<PlusOutlined />}>
               Add product

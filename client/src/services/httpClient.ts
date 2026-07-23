@@ -1,48 +1,78 @@
-// A small wrapper around fetch for talking to the backend API.
-// - Prefixes every path with "/api" (Vite proxies "/api" to the backend).
-// - Attaches the logged-in user's token as an "Authorization: Bearer" header.
-// - Throws an Error (carrying the backend's message) when the response is not
-//   2xx, so callers can rely on try/catch and error.message just like before.
-
-import { loadFromStorage } from "../utils/storage";
-
-// Must match AUTH_STORAGE_KEY in features/auth/authSlice.ts.
-const AUTH_STORAGE_KEY = "pms.auth";
-
-// The auth data we persist looks like { user, token }.
-interface PersistedAuth {
-  token: string | null;
-}
-
-// Read the saved login token, or null if nobody is logged in.
-function getToken(): string | null {
-  const saved = loadFromStorage<PersistedAuth>(AUTH_STORAGE_KEY);
-  return saved !== null ? saved.token : null;
-}
+// Fetch wrapper for /api. Authenticated 401 responses refresh once, then retry.
 
 interface RequestOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
-  // A plain object that will be sent as a JSON request body.
   body?: unknown;
+  skipAuthRecovery?: boolean;
 }
 
-// Make a request to "/api" + path and return the parsed JSON.
-// Returns undefined for a 204 (No Content) response.
+interface AuthConfiguration {
+  getAccessToken: () => string | null;
+  refreshAccessToken: () => Promise<boolean>;
+  clearSession: () => void;
+}
+
+let authConfiguration: AuthConfiguration | undefined;
+let refreshInFlight: Promise<boolean> | undefined;
+
+export function configureHttpClientAuth(configuration: AuthConfiguration): void {
+  authConfiguration = configuration;
+}
+
 export async function request<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
+  const token = authConfiguration?.getAccessToken() ?? null;
+  let response = await sendRequest(path, options, token);
+
+  if (
+    response.status === 401 &&
+    token !== null &&
+    !options.skipAuthRecovery &&
+    authConfiguration !== undefined
+  ) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      response = await sendRequest(
+        path,
+        options,
+        authConfiguration.getAccessToken(),
+      );
+    }
+
+    if (!refreshed || response.status === 401) {
+      authConfiguration.clearSession();
+    }
+  }
+
+  return parseResponse<T>(response);
+}
+
+async function refreshAccessToken(): Promise<boolean> {
+  if (refreshInFlight === undefined) {
+    refreshInFlight = authConfiguration!
+      .refreshAccessToken()
+      .finally(function () {
+        refreshInFlight = undefined;
+      });
+  }
+
+  return await refreshInFlight;
+}
+
+async function sendRequest(
+  path: string,
+  options: RequestOptions,
+  token: string | null,
+): Promise<Response> {
   const method = options.method ?? "GET";
   const headers: Record<string, string> = {};
 
-  const token = getToken();
   if (token !== null) {
     headers["Authorization"] = "Bearer " + token;
   }
 
-  // Build the request body. A FormData body (used for image uploads) is sent as
-  // multipart form-data and the browser sets its Content-Type header itself.
-  // Any other body is sent as JSON.
   let body: BodyInit | undefined = undefined;
   if (options.body instanceof FormData) {
     body = options.body;
@@ -55,15 +85,18 @@ export async function request<T>(
     method: method,
     headers: headers,
     body: body,
+    credentials: "same-origin",
   });
 
-  // On failure, read the backend's { error: { message } } and throw it.
+  return response;
+}
+
+async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const message = await readErrorMessage(response);
     throw new Error(message);
   }
 
-  // 204 No Content (e.g. after a delete) has no body to parse.
   if (response.status === 204) {
     return undefined as T;
   }
@@ -71,17 +104,13 @@ export async function request<T>(
   return (await response.json()) as T;
 }
 
-// Try to pull a human-readable message out of an error response body
-// (the backend uses { error: { message } }).
 async function readErrorMessage(response: Response): Promise<string> {
   try {
     const data = await response.json();
     if (typeof data?.error?.message === "string") {
       return data.error.message;
     }
-  } catch {
-    // The body was not JSON; fall through to a generic message.
-  }
+  } catch {}
 
   return "Request failed (" + response.status + ").";
 }

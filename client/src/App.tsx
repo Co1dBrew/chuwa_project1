@@ -1,35 +1,69 @@
-// Root component: wraps the routes in the Redux and router providers.
-
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Provider } from "react-redux";
 import { BrowserRouter } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import { store } from "./app/store";
 import { useAppDispatch, useAppSelector } from "./app/hooks";
-import { selectCurrentUser } from "./features/auth/authSelectors";
+import {
+  selectAuthInitialized,
+  selectCurrentUser,
+} from "./features/auth/authSelectors";
+import {
+  initializeAuthThunk,
+  logout,
+} from "./features/auth/authSlice";
 import { loadCartThunk } from "./features/cart/cartSlice";
 import AppRoutes from "./routes/AppRoutes";
+import LoadingSpinner from "./components/common/LoadingSpinner";
+import { configureHttpClientAuth } from "./services/httpClient";
 
-// Same font stack as body in index.css, so Ant Design components match plain text.
 const FONT_FAMILY =
   '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
-// Lives inside the Redux Provider so it can read auth state and load the cart.
+configureHttpClientAuth({
+  getAccessToken: function () {
+    return store.getState().auth.token;
+  },
+  refreshAccessToken: async function () {
+    await store.dispatch(initializeAuthThunk());
+    return store.getState().auth.token !== null;
+  },
+  clearSession: function () {
+    store.dispatch(logout());
+  },
+});
+
 function AppContent() {
   const dispatch = useAppDispatch();
   const user = useAppSelector(selectCurrentUser);
+  const initialized = useAppSelector(selectAuthInitialized);
+  const hasInitialized = useRef(false);
 
-  // Whenever a regular user is signed in — including when a session was restored
-  // from localStorage after reopening the page — load their cart from the
-  // backend. (The cart lives on the server, so it is not kept in localStorage.)
   useEffect(
     function () {
-      if (user !== null && user.role === "user") {
+      if (!hasInitialized.current) {
+        hasInitialized.current = true;
+        try {
+          window.localStorage.removeItem("pms.auth");
+        } catch {}
+        dispatch(initializeAuthThunk());
+      }
+    },
+    [dispatch],
+  );
+
+  useEffect(
+    function () {
+      if (initialized && user !== null && user.role === "customer") {
         dispatch(loadCartThunk());
       }
     },
-    [dispatch, user],
+    [dispatch, initialized, user],
   );
+
+  if (!initialized) {
+    return <LoadingSpinner message="Restoring your session..." />;
+  }
 
   return <AppRoutes />;
 }

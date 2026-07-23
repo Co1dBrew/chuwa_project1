@@ -116,9 +116,13 @@ record or product snapshot so customers can understand why an item vanished.
 ## Authentication assumptions
 
 Registration hashes passwords with Argon2 and creates either a customer or
-merchant profile. Sign-in verifies the password and returns a short-lived JWT
-access token. `authenticate` verifies token signature, issuer, audience,
-expiry, and a valid integer user ID before protected routes receive it.
+merchant profile. Sign-in returns a 15-minute JWT access token plus a separate
+7-day refresh JWT in an HttpOnly cookie. Refresh JWTs are stateless: logout
+clears the current browser cookie but cannot revoke a copied token before its
+expiry. This is intentionally simple; add database-backed refresh sessions if
+per-token revocation, rotation, or device management becomes necessary.
+`authenticate` verifies token signature, issuer, audience, token type, expiry,
+and a valid integer user ID before protected routes receive it.
 `requireRole` then loads the current user role from the database, so deleted
 accounts receive `401` and role changes take effect immediately. Cart routes
 require customers; product creation requires merchants; product-image updates

@@ -6,13 +6,14 @@ An Express.js and PostgreSQL API for product, user, cart, and image management.
 
 - Node.js
 - PostgreSQL
-- `DATABASE_URL` and `JWT_SECRET` environment variables
+- `DATABASE_URL`, `JWT_SECRET`, and `REFRESH_JWT_SECRET` environment variables
 
 Create `backend/.env`:
 
 ```dotenv
 DATABASE_URL=postgresql://postgres:password@localhost:5432/ecommerce
 JWT_SECRET=replace-with-a-long-random-secret
+REFRESH_JWT_SECRET=replace-with-a-different-long-random-secret
 ```
 
 ## Run locally
@@ -60,6 +61,8 @@ in `uploads/` and publicly served from `/media`.
 - `GET /users/:userId`
 - `POST /users/registration` — include `role`: `customer` or `merchant`
 - `POST /users/signin`
+- `POST /users/refresh` — reads the HttpOnly refresh-token cookie and returns a new access token
+- `POST /users/logout` — clears this browser's refresh-token cookie
 
 `GET /cart-items` uses the signed-in user's ID from the access token; it does
 not accept a user ID in the URL. All cart-item mutation routes are protected in

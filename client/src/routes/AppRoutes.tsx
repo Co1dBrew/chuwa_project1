@@ -3,7 +3,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import MainLayout from "../components/layout/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
-import AdminRoute from "./AdminRoute";
+import MerchantRoute from "./MerchantRoute";
 import CustomerRoute from "./CustomerRoute";
 import ProductListPage from "../pages/ProductListPage";
 import ProductDetailPage from "../pages/ProductDetailPage";
@@ -26,9 +26,9 @@ function AppRoutes() {
         <Route
           path="products/new"
           element={
-            <AdminRoute>
+            <MerchantRoute>
               <ProductFormPage />
-            </AdminRoute>
+            </MerchantRoute>
           }
         />
 
@@ -37,9 +37,9 @@ function AppRoutes() {
         <Route
           path="products/:productId/edit"
           element={
-            <AdminRoute>
+            <MerchantRoute>
               <ProductFormPage />
-            </AdminRoute>
+            </MerchantRoute>
           }
         />
 

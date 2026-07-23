@@ -1,8 +1,11 @@
 import { Router } from "express";
+import type { Response } from "express";
 import { z } from "zod";
 import {
   authenticate,
   createAccessToken,
+  createRefreshToken,
+  getRefreshTokenUserId,
   hashPassword,
   verifyPassword,
 } from "../auth.js";
@@ -21,6 +24,46 @@ import { MAX_POSTGRES_INTEGER } from "../utils.js";
 import { parse } from "../validation.js";
 
 const router = Router();
+
+const REFRESH_COOKIE_NAME = "refreshToken";
+const REFRESH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
+  // Browser-visible path when Vite proxies /api to this router.
+  path: "/api/users",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
+function getCookie(header: string | undefined, name: string) {
+  if (!header) return undefined;
+
+  for (const part of header.split(";")) {
+    const [key, ...valueParts] = part.trim().split("=");
+    if (key === name) {
+      try {
+        return decodeURIComponent(valueParts.join("="));
+      } catch {
+        return undefined;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function setRefreshCookie(res: Response, userId: number) {
+  res.cookie(REFRESH_COOKIE_NAME, createRefreshToken(userId), REFRESH_COOKIE_OPTIONS);
+}
+
+function clearRefreshCookie(res: Response) {
+  res.clearCookie(REFRESH_COOKIE_NAME, {
+    httpOnly: REFRESH_COOKIE_OPTIONS.httpOnly,
+    sameSite: REFRESH_COOKIE_OPTIONS.sameSite,
+    secure: REFRESH_COOKIE_OPTIONS.secure,
+    path: REFRESH_COOKIE_OPTIONS.path,
+  });
+}
 
 function toUserResponse(user: User) {
   const { password_hash, avatar_key, ...publicUser } = user;
@@ -174,11 +217,37 @@ router.post("/signin", async (req, res) => {
   const publicUser = toUserResponse(user);
   const accessToken = createAccessToken(publicUser.user_id);
 
+  setRefreshCookie(res, publicUser.user_id);
+
   res.json({
     message: "Login successful",
     accessToken,
     user: publicUser,
   });
+});
+
+router.post("/refresh", async (req, res) => {
+  const refreshToken = getCookie(req.headers.cookie, REFRESH_COOKIE_NAME);
+  const userId = refreshToken ? getRefreshTokenUserId(refreshToken) : undefined;
+
+  if (!userId) {
+    throw new AppError(401, "UNAUTHENTICATED", "Authentication required");
+  }
+
+  const user = await getUserById(userId);
+  if (!user) {
+    throw new AppError(401, "UNAUTHENTICATED", "Authentication required");
+  }
+
+  res.json({
+    accessToken: createAccessToken(user.user_id),
+    user: toUserResponse(user),
+  });
+});
+
+router.post("/logout", (_req, res) => {
+  clearRefreshCookie(res);
+  res.status(204).end();
 });
 
 export default router;

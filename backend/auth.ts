@@ -6,23 +6,73 @@ import { AppError } from "./error.js";
 import { MAX_POSTGRES_INTEGER, requireEnv } from "./utils.js";
 
 const JWT_SECRET = requireEnv("JWT_SECRET");
+const REFRESH_JWT_SECRET = requireEnv("REFRESH_JWT_SECRET");
+
+const JWT_ISSUER = "my-api";
+const JWT_AUDIENCE = "my-frontend";
 
 function unauthenticated(): AppError {
   return new AppError(401, "UNAUTHENTICATED", "Authentication required");
 }
 
-export function createAccessToken(userId: number) {
+function createToken(
+  userId: number,
+  type: "access" | "refresh",
+  secret: string,
+  expiresIn: "15m" | "7d",
+) {
   return jwt.sign(
+    { sub: String(userId), token_type: type },
+    secret,
     {
-      sub: String(userId),
-    },
-    JWT_SECRET,
-    {
-      expiresIn: "15m",
-      issuer: "my-api",
-      audience: "my-frontend",
+      expiresIn,
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
     },
   );
+}
+
+export function createAccessToken(userId: number) {
+  return createToken(userId, "access", JWT_SECRET, "15m");
+}
+
+export function createRefreshToken(userId: number) {
+  return createToken(userId, "refresh", REFRESH_JWT_SECRET, "7d");
+}
+
+/** Verifies a typed JWT; returns its user id or undefined when invalid. */
+function getTokenUserId(
+  token: string,
+  secret: string,
+  type: "access" | "refresh",
+): number | undefined {
+  let payload: jwt.JwtPayload | string;
+
+  try {
+    payload = jwt.verify(token, secret, {
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    });
+  } catch {
+    return undefined;
+  }
+
+  if (
+    typeof payload === "string" ||
+    payload.token_type !== type ||
+    typeof payload.sub !== "string"
+  ) {
+    return undefined;
+  }
+
+  const userId = Number(payload.sub);
+  return Number.isSafeInteger(userId) && userId >= 1 && userId <= MAX_POSTGRES_INTEGER
+    ? userId
+    : undefined;
+}
+
+export function getRefreshTokenUserId(token: string) {
+  return getTokenUserId(token, REFRESH_JWT_SECRET, "refresh");
 }
 
 export async function hashPassword(password: string) {
@@ -49,30 +99,8 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
   if (!authorization?.startsWith("Bearer ")) throw unauthenticated();
 
   const token = authorization.slice("Bearer ".length);
-  let payload: jwt.JwtPayload | string;
-
-  try {
-    payload = jwt.verify(token, JWT_SECRET, {
-      issuer: "my-api",
-      audience: "my-frontend",
-    });
-  } catch {
-    throw unauthenticated();
-  }
-
-  if (typeof payload === "string" || typeof payload.sub !== "string") {
-    throw unauthenticated();
-  }
-
-  const userId = Number(payload.sub);
-
-  if (
-    !Number.isSafeInteger(userId) ||
-    userId < 1 ||
-    userId > MAX_POSTGRES_INTEGER
-  ) {
-    throw unauthenticated();
-  }
+  const userId = getTokenUserId(token, JWT_SECRET, "access");
+  if (!userId) throw unauthenticated();
 
   req.auth = { userId };
   next();

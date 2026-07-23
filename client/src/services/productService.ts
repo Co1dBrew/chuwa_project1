@@ -80,7 +80,7 @@ export async function getProductById(id: string): Promise<Product> {
   return mapApiProductToProduct(apiProduct, nameById);
 }
 
-// Create a brand new product (merchant/admin only). The photo is uploaded in the
+// Create a brand new product (merchant only). The photo is uploaded in the
 // same multipart request, so the body is FormData rather than JSON. Numbers and
 // the "meta" object are sent as strings, which the backend parses.
 export async function createProduct(input: ProductInput): Promise<Product> {
@@ -108,7 +108,7 @@ export async function createProduct(input: ProductInput): Promise<Product> {
   return mapApiProductToProduct(apiProduct, nameById);
 }
 
-// Update an existing product (merchant/admin only, and only your own products).
+// Update an existing product (merchant only, and only your own products).
 // The text fields are updated via PATCH (JSON); if a new photo was chosen, it is
 // uploaded afterwards to the dedicated image endpoint.
 export async function updateProduct(
@@ -143,7 +143,7 @@ export async function updateProduct(
   return mapApiProductToProduct(apiProduct, nameById);
 }
 
-// Delete a product (merchant/admin only, and only your own products).
+// Delete a product (merchant only, and only your own products).
 export async function deleteProduct(id: string): Promise<void> {
   await request<void>("/products/" + id, { method: "DELETE" });
 }

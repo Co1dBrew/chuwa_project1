@@ -7,23 +7,23 @@ import { ShoppingCartOutlined, UserOutlined } from "@ant-design/icons";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import {
   selectCurrentUser,
-  selectIsAdmin,
+  selectIsMerchant,
   selectIsAuthenticated,
 } from "../../features/auth/authSelectors";
 import { selectCartItemCount } from "../../features/cart/cartSelectors";
-import { logout } from "../../features/auth/authSlice";
+import { logoutThunk } from "../../features/auth/authSlice";
 
 function Header() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
-  const isAdmin = useAppSelector(selectIsAdmin);
+  const isMerchant = useAppSelector(selectIsMerchant);
   const currentUser = useAppSelector(selectCurrentUser);
   const cartItemCount = useAppSelector(selectCartItemCount);
 
   function handleLogout() {
-    dispatch(logout());
+    dispatch(logoutThunk());
     navigate("/products");
   }
 
@@ -63,8 +63,8 @@ function Header() {
       </Link>
 
       <Space size="middle">
-        {/* The cart is for regular users only (admins manage products). */}
-        {!isAdmin ? (
+        {/* The cart is for customers only. */}
+        {!isMerchant ? (
           <Link to="/cart" aria-label="Cart">
             <Badge count={cartItemCount} size="small">
               <ShoppingCartOutlined style={{ fontSize: 22, color: "#333" }} />
@@ -79,9 +79,9 @@ function Header() {
           >
             <Button icon={<UserOutlined />}>
               {currentUser !== null ? currentUser.username : "Account"}
-              {isAdmin ? (
+              {isMerchant ? (
                 <Tag color="gold" style={{ marginLeft: 8 }}>
-                  Admin
+                  Merchant
                 </Tag>
               ) : null}
             </Button>

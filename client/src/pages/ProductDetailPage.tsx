@@ -1,4 +1,4 @@
-// Shows the details of a single product, with add-to-cart and admin actions.
+// Shows the details of a single product, with cart and merchant actions.
 
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -14,7 +14,7 @@ import { useAppDispatch, useAppSelector } from "../app/hooks";
 import { addToCartThunk } from "../features/cart/cartSlice";
 import { selectQuantityForProduct } from "../features/cart/cartSelectors";
 import {
-  selectIsAdmin,
+  selectIsMerchant,
   selectIsAuthenticated,
 } from "../features/auth/authSelectors";
 import { formatCents } from "../utils/currency";
@@ -28,7 +28,7 @@ function ProductDetailPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  const isAdmin = useAppSelector(selectIsAdmin);
+  const isMerchant = useAppSelector(selectIsMerchant);
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -205,8 +205,7 @@ function ProductDetailPage() {
           ) : null}
 
           <Space direction="vertical" style={{ width: "100%" }}>
-            {/* The cart is for regular users; admins do not see "Add to cart". */}
-            {!isAdmin ? (
+            {!isMerchant ? (
               <Button
                 type="primary"
                 size="large"
@@ -218,8 +217,7 @@ function ProductDetailPage() {
               </Button>
             ) : null}
 
-            {/* Admin-only actions. */}
-            {isAdmin ? (
+            {isMerchant ? (
               <Space>
                 <Button
                   icon={<EditOutlined />}

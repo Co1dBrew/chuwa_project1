@@ -37,7 +37,7 @@ function SignUpPage() {
       username: values.username ?? "",
       email: values.email ?? "",
       password: values.password ?? "",
-      role: values.role ?? "user",
+      role: values.role ?? "customer",
     };
 
     // (The cart is loaded by App once the user is signed in.)

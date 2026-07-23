@@ -1,7 +1,6 @@
 // User and authentication type definitions.
 
-/** The two kinds of user our system supports. */
-export type UserRole = "user" | "admin";
+export type UserRole = "customer" | "merchant";
 
 /** A user account as the rest of the application sees it (no password field). */
 export interface User {

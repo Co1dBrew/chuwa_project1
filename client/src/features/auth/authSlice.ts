@@ -1,8 +1,4 @@
-// The authentication slice of the Redux store: the signed-in user, token,
-// a loading flag and an error message.
-
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import type { PayloadAction } from "@reduxjs/toolkit";
 import type {
   AuthResult,
   SignInInput,
@@ -10,38 +6,23 @@ import type {
   User,
 } from "../../types/user";
 import * as authService from "../../services/authService";
-import { loadFromStorage } from "../../utils/storage";
 
-/** The key under which we save the logged-in user between page refreshes. */
-export const AUTH_STORAGE_KEY = "pms.auth";
-
-/** The shape of this slice's state. */
 interface AuthState {
   user: User | null;
   token: string | null;
   loading: boolean;
   error: string | null;
+  initialized: boolean;
 }
 
-/** The small piece of auth data we save to (and load from) localStorage. */
-interface PersistedAuth {
-  user: User | null;
-  token: string | null;
-}
+const initialState: AuthState = {
+  user: null,
+  token: null,
+  loading: false,
+  error: null,
+  initialized: false,
+};
 
-/** Build the starting state, restoring the saved user from localStorage if any. */
-function buildInitialState(): AuthState {
-  const saved = loadFromStorage<PersistedAuth>(AUTH_STORAGE_KEY);
-
-  return {
-    user: saved !== null ? saved.user : null,
-    token: saved !== null ? saved.token : null,
-    loading: false,
-    error: null,
-  };
-}
-
-/** Sign in; on failure rejects with an error message for the UI. */
 export const signInThunk = createAsyncThunk<
   AuthResult,
   SignInInput,
@@ -56,7 +37,6 @@ export const signInThunk = createAsyncThunk<
   }
 });
 
-/** Register a new account and sign the new user in. */
 export const signUpThunk = createAsyncThunk<
   AuthResult,
   SignUpInput,
@@ -71,32 +51,51 @@ export const signUpThunk = createAsyncThunk<
   }
 });
 
+export const initializeAuthThunk = createAsyncThunk<AuthResult | null>(
+  "auth/initialize",
+  async function () {
+    try {
+      return await authService.refreshSession();
+    } catch {
+      return null;
+    }
+  },
+);
+
+export const logoutThunk = createAsyncThunk<void>("auth/logout", async function () {
+  try {
+    await authService.signOut();
+  } catch {}
+});
+
+function clearAuthState(state: AuthState): void {
+  state.user = null;
+  state.token = null;
+  state.loading = false;
+  state.error = null;
+  state.initialized = true;
+}
+
 const authSlice = createSlice({
   name: "auth",
-  initialState: buildInitialState(),
+  initialState,
   reducers: {
-    /** Sign the user out and clear everything. */
     logout(state) {
-      state.user = null;
-      state.token = null;
-      state.loading = false;
-      state.error = null;
+      clearAuthState(state);
     },
-    /** Clear any error message. */
     clearAuthError(state) {
       state.error = null;
     },
   },
   extraReducers: function (builder) {
     builder
-      // Sign in
       .addCase(signInThunk.pending, function (state) {
         state.loading = true;
         state.error = null;
       })
       .addCase(
         signInThunk.fulfilled,
-        function (state, action: PayloadAction<AuthResult>) {
+        function (state, action) {
           state.loading = false;
           state.user = action.payload.user;
           state.token = action.payload.token;
@@ -106,15 +105,13 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload ?? "Sign in failed.";
       })
-
-      // Sign up
       .addCase(signUpThunk.pending, function (state) {
         state.loading = true;
         state.error = null;
       })
       .addCase(
         signUpThunk.fulfilled,
-        function (state, action: PayloadAction<AuthResult>) {
+        function (state, action) {
           state.loading = false;
           state.user = action.payload.user;
           state.token = action.payload.token;
@@ -123,6 +120,19 @@ const authSlice = createSlice({
       .addCase(signUpThunk.rejected, function (state, action) {
         state.loading = false;
         state.error = action.payload ?? "Sign up failed.";
+      })
+      .addCase(initializeAuthThunk.fulfilled, function (state, action) {
+        state.initialized = true;
+        if (action.payload === null) {
+          clearAuthState(state);
+          return;
+        }
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.error = null;
+      })
+      .addCase(logoutThunk.fulfilled, function (state) {
+        clearAuthState(state);
       });
   },
 });

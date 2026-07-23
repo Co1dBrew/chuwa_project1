@@ -12,7 +12,7 @@ import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { addToCartThunk } from "../../features/cart/cartSlice";
 import { selectQuantityForProduct } from "../../features/cart/cartSelectors";
 import {
-  selectIsAdmin,
+  selectIsMerchant,
   selectIsAuthenticated,
 } from "../../features/auth/authSelectors";
 import { formatCents } from "../../utils/currency";
@@ -27,7 +27,7 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  const isAdmin = useAppSelector(selectIsAdmin);
+  const isMerchant = useAppSelector(selectIsMerchant);
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
   const quantityInCart = useAppSelector(function (state) {
     return selectQuantityForProduct(state, product.id);
@@ -133,8 +133,7 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
       ) : null}
 
       <Space direction="vertical" style={{ width: "100%" }} size="small">
-        {/* The cart is for regular users; admins do not see "Add to cart". */}
-        {!isAdmin ? (
+        {!isMerchant ? (
           <Button
             type="primary"
             icon={<ShoppingCartOutlined />}
@@ -146,8 +145,7 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
           </Button>
         ) : null}
 
-        {/* Only administrators see the edit and delete buttons. */}
-        {isAdmin ? (
+        {isMerchant ? (
           <Space style={{ width: "100%" }} size="small">
             <Button icon={<EditOutlined />} onClick={handleEdit} block>
               Edit

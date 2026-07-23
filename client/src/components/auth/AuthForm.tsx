@@ -198,10 +198,10 @@ function AuthForm({ mode, onSubmit, loading, error, title, footer }: AuthFormPro
         ) : null}
 
         {showRole ? (
-          <Form.Item label="Account type" name="role" initialValue="user">
+          <Form.Item label="Account type" name="role" initialValue="customer">
             <Radio.Group>
-              <Radio value="user">Regular user</Radio>
-              <Radio value="admin">Admin</Radio>
+              <Radio value="customer">Customer</Radio>
+              <Radio value="merchant">Merchant</Radio>
             </Radio.Group>
           </Form.Item>
         ) : null}

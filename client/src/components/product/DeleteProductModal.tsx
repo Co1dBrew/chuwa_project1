@@ -1,4 +1,4 @@
-// Controlled confirm dialog shown before an admin deletes a product.
+// Controlled confirm dialog shown before a merchant deletes a product.
 
 import { Modal } from "antd";
 import type { Product } from "../../types/product";
