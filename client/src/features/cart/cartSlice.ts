@@ -1,22 +1,15 @@
-// The shopping cart slice of the Redux store. Carts are saved per user in
-// localStorage under a "user id -> cart" map; guests have no cart.
+// The shopping cart slice. The cart items now live on the backend (/cart-items),
+// so the actions that change the cart are async thunks that call the backend and
+// then refresh the item list. The promotion code / discount is still computed on
+// the client (the backend has no promotion concept).
 
-import { createSlice } from "@reduxjs/toolkit";
+import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { CartItem, CartState } from "../../types/cart";
 import type { Product } from "../../types/product";
-import type { User } from "../../types/user";
-import { productToCartItem } from "../../utils/productMapper";
-import { loadFromStorage, saveToStorage } from "../../utils/storage";
-import {
-  AUTH_STORAGE_KEY,
-  logout,
-  signInThunk,
-  signUpThunk,
-} from "../auth/authSlice";
-
-/** The key under which the "user id -> cart" map is saved in localStorage. */
-const CARTS_STORAGE_KEY = "pms.carts";
+import type { RootState } from "../../app/store";
+import * as cartService from "../../services/cartService";
+import { logout } from "../auth/authSlice";
 
 /** The promotion codes the store accepts (percent off, or fixed cents off). */
 const PROMOTIONS: Record<string, { type: "percent" | "fixed"; value: number }> = {
@@ -34,50 +27,6 @@ function createEmptyCart(): CartState {
   };
 }
 
-/** Read the whole "user id -> cart" map from storage (or {} if none saved). */
-function readAllCarts(): Record<string, CartState> {
-  const saved = loadFromStorage<Record<string, CartState>>(CARTS_STORAGE_KEY);
-  return saved !== null ? saved : {};
-}
-
-/** Load one user's saved cart, or an empty cart if they have none saved. */
-function loadCartForUser(userId: string): CartState {
-  const allCarts = readAllCarts();
-  const savedCart = allCarts[userId];
-
-  if (savedCart === undefined) {
-    return createEmptyCart();
-  }
-
-  // A promotion error is a temporary message; never restore a stale one.
-  return { ...savedCart, promotionError: null };
-}
-
-/** Save one user's cart back into the map (called by the store on cart changes). */
-export function saveCartForUser(userId: string, cart: CartState): void {
-  const allCarts = readAllCarts();
-  allCarts[userId] = cart;
-  saveToStorage(CARTS_STORAGE_KEY, allCarts);
-}
-
-/** Read the logged-in user's id from saved auth data, or null. */
-function findLoggedInUserId(): string | null {
-  const savedAuth = loadFromStorage<{ user: User | null }>(AUTH_STORAGE_KEY);
-  if (savedAuth !== null && savedAuth.user !== null) {
-    return savedAuth.user.id;
-  }
-  return null;
-}
-
-/** Build the starting cart: the logged-in user's saved cart, or empty. */
-function buildInitialState(): CartState {
-  const userId = findLoggedInUserId();
-  if (userId !== null) {
-    return loadCartForUser(userId);
-  }
-  return createEmptyCart();
-}
-
 /** Add up the price of every item in the cart (before any discount). */
 function calculateSubtotalCents(items: CartItem[]): number {
   let subtotal = 0;
@@ -87,7 +36,7 @@ function calculateSubtotalCents(items: CartItem[]): number {
   return subtotal;
 }
 
-/** Recalculate the discount and store it on the state. */
+/** Recalculate the discount (from the applied code) and store it on the state. */
 function recalculateDiscount(state: CartState): void {
   if (state.promotionCode === "") {
     state.discountCents = 0;
@@ -117,106 +66,130 @@ function recalculateDiscount(state: CartState): void {
   state.discountCents = discount;
 }
 
+// --- Thunks: each one calls the backend, then returns the fresh cart items. ---
+
+/** Load the signed-in user's cart from the backend. */
+export const loadCartThunk = createAsyncThunk<CartItem[]>(
+  "cart/load",
+  async function () {
+    return await cartService.getCart();
+  },
+);
+
+/** Add a product to the cart (or increment it, up to the stock limit). */
+export const addToCartThunk = createAsyncThunk<
+  CartItem[],
+  Product,
+  { state: RootState; rejectValue: string }
+>("cart/add", async function (product, thunkApi) {
+  if (product.stock <= 0) {
+    return thunkApi.rejectWithValue("This product is out of stock.");
+  }
+
+  const existing = thunkApi
+    .getState()
+    .cart.items.find(function (item) {
+      return item.productId === product.id;
+    });
+
+  if (existing === undefined) {
+    await cartService.addItem(product.id, 1);
+  } else {
+    if (existing.quantity >= product.stock) {
+      return thunkApi.rejectWithValue(
+        "No more stock available for " + product.name + ".",
+      );
+    }
+    await cartService.incrementItem(product.id);
+  }
+
+  return await cartService.getCart();
+});
+
+/** Increase the quantity of one item by 1, up to the stock limit. */
+export const increaseQuantity = createAsyncThunk<
+  CartItem[],
+  string,
+  { state: RootState }
+>("cart/increase", async function (productId, thunkApi) {
+  const item = thunkApi.getState().cart.items.find(function (current) {
+    return current.productId === productId;
+  });
+
+  if (item !== undefined && item.quantity < item.stock) {
+    await cartService.incrementItem(productId);
+  }
+
+  return await cartService.getCart();
+});
+
+/** Decrease the quantity of one item by 1. Remove it if it would reach 0. */
+export const decreaseQuantity = createAsyncThunk<
+  CartItem[],
+  string,
+  { state: RootState }
+>("cart/decrease", async function (productId, thunkApi) {
+  const item = thunkApi.getState().cart.items.find(function (current) {
+    return current.productId === productId;
+  });
+
+  if (item !== undefined) {
+    if (item.quantity <= 1) {
+      await cartService.removeItem(productId);
+    } else {
+      await cartService.setItemQuantity(productId, item.quantity - 1);
+    }
+  }
+
+  return await cartService.getCart();
+});
+
+/** Set an exact quantity for one item, clamped between 1 and the stock. */
+export const setQuantity = createAsyncThunk<
+  CartItem[],
+  { productId: string; quantity: number },
+  { state: RootState }
+>("cart/setQuantity", async function ({ productId, quantity }, thunkApi) {
+  const item = thunkApi.getState().cart.items.find(function (current) {
+    return current.productId === productId;
+  });
+
+  if (item !== undefined) {
+    let safeQuantity = Math.floor(quantity);
+    if (Number.isNaN(safeQuantity) || safeQuantity < 1) {
+      safeQuantity = 1;
+    }
+    if (safeQuantity > item.stock) {
+      safeQuantity = item.stock;
+    }
+    await cartService.setItemQuantity(productId, safeQuantity);
+  }
+
+  return await cartService.getCart();
+});
+
+/** Remove one item from the cart completely. */
+export const removeFromCart = createAsyncThunk<CartItem[], string>(
+  "cart/remove",
+  async function (productId) {
+    await cartService.removeItem(productId);
+    return await cartService.getCart();
+  },
+);
+
+/** Place the order: empty the cart. (Stock reduction is not wired up yet.) */
+export const checkoutThunk = createAsyncThunk<CartItem[]>(
+  "cart/checkout",
+  async function () {
+    await cartService.clearCart();
+    return await cartService.getCart();
+  },
+);
+
 const cartSlice = createSlice({
   name: "cart",
-  initialState: buildInitialState(),
+  initialState: createEmptyCart(),
   reducers: {
-    /** Add a product to the cart, or increment it up to the stock limit. */
-    addToCart(state, action: PayloadAction<Product>) {
-      const product = action.payload;
-
-      if (product.stock <= 0) {
-        return;
-      }
-
-      const existingItem = state.items.find(function (item) {
-        return item.productId === product.id;
-      });
-
-      if (existingItem === undefined) {
-        state.items.push(productToCartItem(product));
-      } else {
-        // Refresh the stock limit (an admin may have changed it), then add one more.
-        existingItem.stock = product.stock;
-        if (existingItem.quantity < existingItem.stock) {
-          existingItem.quantity = existingItem.quantity + 1;
-        }
-      }
-
-      recalculateDiscount(state);
-    },
-
-    /** Increase the quantity of one item by 1, up to the stock limit. */
-    increaseQuantity(state, action: PayloadAction<string>) {
-      const productId = action.payload;
-      const item = state.items.find(function (current) {
-        return current.productId === productId;
-      });
-
-      if (item !== undefined && item.quantity < item.stock) {
-        item.quantity = item.quantity + 1;
-      }
-
-      recalculateDiscount(state);
-    },
-
-    /** Decrease the quantity of one item by 1. Remove it if it reaches 0. */
-    decreaseQuantity(state, action: PayloadAction<string>) {
-      const productId = action.payload;
-      const item = state.items.find(function (current) {
-        return current.productId === productId;
-      });
-
-      if (item !== undefined) {
-        item.quantity = item.quantity - 1;
-
-        if (item.quantity <= 0) {
-          state.items = state.items.filter(function (current) {
-            return current.productId !== productId;
-          });
-        }
-      }
-
-      recalculateDiscount(state);
-    },
-
-    /** Set an exact quantity for one item, clamped between 1 and the stock. */
-    setQuantity(state, action: PayloadAction<{ productId: string; quantity: number }>) {
-      const { productId, quantity } = action.payload;
-      const item = state.items.find(function (current) {
-        return current.productId === productId;
-      });
-
-      if (item === undefined) {
-        return;
-      }
-
-      let safeQuantity = quantity;
-
-      if (Number.isNaN(safeQuantity) || safeQuantity < 1) {
-        safeQuantity = 1;
-      }
-
-      // Round down; you cannot buy a fraction of a product.
-      safeQuantity = Math.floor(safeQuantity);
-
-      if (safeQuantity > item.stock) {
-        safeQuantity = item.stock;
-      }
-
-      item.quantity = safeQuantity;
-      recalculateDiscount(state);
-    },
-
-    /** Remove one item from the cart completely. */
-    removeFromCart(state, action: PayloadAction<string>) {
-      const productId = action.payload;
-      state.items = state.items.filter(function (item) {
-        return item.productId !== productId;
-      });
-      recalculateDiscount(state);
-    },
-
     /** Apply a promotion code, or store an error message if it is invalid. */
     applyPromotionCode(state, action: PayloadAction<string>) {
       // Upper-case so "save10" and "SAVE10" both match.
@@ -251,45 +224,31 @@ const cartSlice = createSlice({
     clearPromotionError(state) {
       state.promotionError = null;
     },
-
-    /** Empty the whole cart (for example after checkout). */
-    clearCart(state) {
-      state.items = [];
-      state.promotionCode = "";
-      state.discountCents = 0;
-      state.promotionError = null;
-    },
   },
 
-  // React to auth actions so the cart follows the logged-in user.
   extraReducers: function (builder) {
-    // On sign in, load that user's saved cart.
-    builder.addCase(signInThunk.fulfilled, function (_state, action) {
-      return loadCartForUser(action.payload.user.id);
-    });
+    // Every cart thunk resolves with the fresh item list; store it and recalc.
+    function applyItems(state: CartState, action: PayloadAction<CartItem[]>) {
+      state.items = action.payload;
+      recalculateDiscount(state);
+    }
 
-    // On sign up, start with the new user's (empty) cart.
-    builder.addCase(signUpThunk.fulfilled, function (_state, action) {
-      return loadCartForUser(action.payload.user.id);
-    });
-
-    // On logout, empty the in-memory cart; the saved cart stays in storage.
-    builder.addCase(logout, function () {
-      return createEmptyCart();
-    });
+    builder
+      .addCase(loadCartThunk.fulfilled, applyItems)
+      .addCase(addToCartThunk.fulfilled, applyItems)
+      .addCase(increaseQuantity.fulfilled, applyItems)
+      .addCase(decreaseQuantity.fulfilled, applyItems)
+      .addCase(setQuantity.fulfilled, applyItems)
+      .addCase(removeFromCart.fulfilled, applyItems)
+      .addCase(checkoutThunk.fulfilled, applyItems)
+      // On logout, empty the in-memory cart (the backend keeps the saved cart).
+      .addCase(logout, function () {
+        return createEmptyCart();
+      });
   },
 });
 
-export const {
-  addToCart,
-  increaseQuantity,
-  decreaseQuantity,
-  setQuantity,
-  removeFromCart,
-  applyPromotionCode,
-  clearPromotion,
-  clearPromotionError,
-  clearCart,
-} = cartSlice.actions;
+export const { applyPromotionCode, clearPromotion, clearPromotionError } =
+  cartSlice.actions;
 
 export default cartSlice.reducer;

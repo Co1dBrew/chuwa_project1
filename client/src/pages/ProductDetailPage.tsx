@@ -11,13 +11,14 @@ import {
 import type { Product } from "../types/product";
 import { deleteProduct, getProductById } from "../services/productService";
 import { useAppDispatch, useAppSelector } from "../app/hooks";
-import { addToCart } from "../features/cart/cartSlice";
+import { addToCartThunk } from "../features/cart/cartSlice";
 import { selectQuantityForProduct } from "../features/cart/cartSelectors";
 import {
   selectIsAdmin,
   selectIsAuthenticated,
 } from "../features/auth/authSelectors";
 import { formatCents } from "../utils/currency";
+import { PLACEHOLDER_IMAGE, handleImageError } from "../utils/imagePlaceholder";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import ErrorMessage from "../components/common/ErrorMessage";
 import DeleteProductModal from "../components/product/DeleteProductModal";
@@ -50,8 +51,6 @@ function ProductDetailPage() {
   // Load the product whenever the id changes or we ask for a reload.
   useEffect(
     function () {
-      let isCurrent = true;
-
       async function loadProduct() {
         if (productId === undefined) {
           setError("Product not found.");
@@ -64,29 +63,19 @@ function ProductDetailPage() {
 
         try {
           const found = await getProductById(productId);
-          if (isCurrent) {
-            setProduct(found);
-          }
+          setProduct(found);
         } catch (caughtError) {
-          if (isCurrent) {
-            const messageText =
-              caughtError instanceof Error
-                ? caughtError.message
-                : "Could not load the product.";
-            setError(messageText);
-          }
+          const messageText =
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Could not load the product.";
+          setError(messageText);
         } finally {
-          if (isCurrent) {
-            setLoading(false);
-          }
+          setLoading(false);
         }
       }
 
       loadProduct();
-
-      return function () {
-        isCurrent = false;
-      };
     },
     [productId, refreshCounter],
   );
@@ -115,8 +104,19 @@ function ProductDetailPage() {
       return;
     }
 
-    dispatch(addToCart(product));
-    message.success(product.name + " added to your cart.");
+    // Adding to the cart now calls the backend, so it is asynchronous.
+    dispatch(addToCartThunk(product))
+      .unwrap()
+      .then(function () {
+        message.success(product.name + " added to your cart.");
+      })
+      .catch(function (errorMessage) {
+        message.warning(
+          typeof errorMessage === "string"
+            ? errorMessage
+            : "Could not add to cart.",
+        );
+      });
   }
 
   async function handleConfirmDelete() {
@@ -167,8 +167,9 @@ function ProductDetailPage() {
         {/* Left column: the product image. */}
         <Col xs={24} md={12}>
           <img
-            src={product.imageUrl}
+            src={product.imageUrl || PLACEHOLDER_IMAGE}
             alt={product.name}
+            onError={handleImageError}
             style={{ width: "100%", borderRadius: 12, objectFit: "cover" }}
           />
         </Col>
@@ -204,15 +205,18 @@ function ProductDetailPage() {
           ) : null}
 
           <Space direction="vertical" style={{ width: "100%" }}>
-            <Button
-              type="primary"
-              size="large"
-              icon={<ShoppingCartOutlined />}
-              disabled={isOutOfStock}
-              onClick={handleAddToCart}
-            >
-              Add to cart
-            </Button>
+            {/* The cart is for regular users; admins do not see "Add to cart". */}
+            {!isAdmin ? (
+              <Button
+                type="primary"
+                size="large"
+                icon={<ShoppingCartOutlined />}
+                disabled={isOutOfStock}
+                onClick={handleAddToCart}
+              >
+                Add to cart
+              </Button>
+            ) : null}
 
             {/* Admin-only actions. */}
             {isAdmin ? (

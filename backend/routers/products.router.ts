@@ -6,9 +6,10 @@ import {
   createProduct,
   deleteProduct,
   getProductById,
-  getProducts,
+  listProductsPaged,
   isForeignKeyViolation,
   isUniqueViolation,
+  updateProduct,
   updateProductImageKey,
 } from "../db.js";
 import { AppError } from "../error.js";
@@ -42,21 +43,43 @@ async function requireOwnedProduct(productId: number, merchantId: number) {
   return product;
 }
 
+const DEFAULT_PAGE_SIZE = 8;
+
 const QuerySchema = z.object({
-  limit: z.coerce.number().int().positive().optional(),
-  cursor: z.coerce
+  search: z.string().trim().optional(),
+  category_id: z.coerce
     .number()
     .int()
-    .nonnegative()
+    .positive()
+    .max(MAX_POSTGRES_INTEGER)
+    .optional(),
+  page: z.coerce.number().int().positive().max(MAX_POSTGRES_INTEGER).optional(),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .positive()
     .max(MAX_POSTGRES_INTEGER)
     .optional(),
 });
 
 router.get("/", async (req, res) => {
-  const { limit, cursor } = parse(QuerySchema, req.query);
-  const products = await getProducts(limit, cursor);
+  const query = parse(QuerySchema, req.query);
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
 
-  res.json(products.map(toProductResponse));
+  const { rows, total } = await listProductsPaged({
+    search: query.search,
+    categoryId: query.category_id,
+    page,
+    pageSize,
+  });
+
+  res.json({
+    items: rows.map(toProductResponse),
+    total,
+    page,
+    pageSize,
+  });
 });
 
 const ProductIdSchema = z.coerce
@@ -207,6 +230,52 @@ router.delete(
     }
 
     res.status(204).end();
+  },
+);
+
+router.patch(
+  "/:productId",
+  authenticate,
+  requireRole("merchant"),
+  async (req, res) => {
+    const productId = parse(ProductIdSchema, req.params.productId);
+    const merchantId = req.auth!.userId;
+
+    // 404 if it does not exist, 403 if it belongs to another merchant.
+    await requireOwnedProduct(productId, merchantId);
+
+    // Reuse the same field validation as product creation.
+    const productInput = parse(ProductInput, req.body);
+
+    let product: Product | undefined;
+
+    try {
+      product = await updateProduct(productId, merchantId, productInput);
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new AppError(
+          409,
+          "SKU_ALREADY_EXISTS",
+          "A product with this SKU already exists",
+        );
+      }
+
+      if (isForeignKeyViolation(error)) {
+        throw new AppError(
+          422,
+          "INVALID_CATEGORY",
+          "The selected category does not exist",
+        );
+      }
+
+      throw error;
+    }
+
+    if (!product) {
+      throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
+    }
+
+    res.json(toProductResponse(product));
   },
 );
 

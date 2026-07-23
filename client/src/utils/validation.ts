@@ -1,6 +1,7 @@
 // Reusable validation helpers shared across forms.
 
-export const MIN_PASSWORD_LENGTH = 6;
+// The backend requires 8–128 character passwords, so match its minimum.
+export const MIN_PASSWORD_LENGTH = 8;
 
 // Basic "something@something.something" email check. Not exhaustive.
 export function isValidEmail(email: string): boolean {

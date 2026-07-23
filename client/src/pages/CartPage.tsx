@@ -5,8 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button, Col, Row, message } from "antd";
 import { useAppDispatch, useAppSelector } from "../app/hooks";
 import { selectCartItems } from "../features/cart/cartSelectors";
-import { clearCart } from "../features/cart/cartSlice";
-import { reduceStockForPurchase } from "../services/productService";
+import { checkoutThunk } from "../features/cart/cartSlice";
 import CartItem from "../components/cart/CartItem";
 import CartSummary from "../components/cart/CartSummary";
 import PromotionCodeForm from "../components/cart/PromotionCodeForm";
@@ -22,14 +21,11 @@ function CartPage() {
   async function handleCheckout() {
     setCheckoutLoading(true);
     try {
-      // Reduce stock for the purchased products (a real app would place an order).
-      const purchases = items.map(function (item) {
-        return { productId: item.productId, quantity: item.quantity };
-      });
-      await reduceStockForPurchase(purchases);
+      // Place the order: empty the backend cart. (Stock reduction is not wired
+      // up yet, so this is a demo checkout.)
+      await dispatch(checkoutThunk()).unwrap();
 
       message.success("Order placed! Thank you for shopping. (This is a demo.)");
-      dispatch(clearCart());
       navigate("/products");
     } catch (caughtError) {
       const messageText =

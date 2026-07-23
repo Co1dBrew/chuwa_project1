@@ -34,10 +34,13 @@ function ProductFormPage() {
     undefined,
   );
 
+  // The product's existing photo URL, shown in edit mode.
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | undefined>(
+    undefined,
+  );
+
   useEffect(
     function () {
-      let isCurrent = true;
-
       async function loadProduct() {
         if (!isEditMode || productId === undefined) {
           return;
@@ -48,29 +51,20 @@ function ProductFormPage() {
 
         try {
           const product = await getProductById(productId);
-          if (isCurrent) {
-            setInitialValues(productToFormValues(product));
-          }
+          setInitialValues(productToFormValues(product));
+          setCurrentImageUrl(product.imageUrl);
         } catch (caughtError) {
-          if (isCurrent) {
-            const messageText =
-              caughtError instanceof Error
-                ? caughtError.message
-                : "Could not load the product.";
-            setError(messageText);
-          }
+          const messageText =
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Could not load the product.";
+          setError(messageText);
         } finally {
-          if (isCurrent) {
-            setLoading(false);
-          }
+          setLoading(false);
         }
       }
 
       loadProduct();
-
-      return function () {
-        isCurrent = false;
-      };
     },
     [isEditMode, productId],
   );
@@ -113,6 +107,7 @@ function ProductFormPage() {
       <h1>{isEditMode ? "Edit product" : "Add product"}</h1>
       <ProductForm
         initialValues={initialValues}
+        currentImageUrl={currentImageUrl}
         onSubmit={handleSubmit}
         loading={submitting}
         submitText={isEditMode ? "Save changes" : "Create product"}

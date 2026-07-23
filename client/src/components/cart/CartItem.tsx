@@ -12,6 +12,7 @@ import {
   setQuantity,
 } from "../../features/cart/cartSlice";
 import { formatCents } from "../../utils/currency";
+import { PLACEHOLDER_IMAGE, handleImageError } from "../../utils/imagePlaceholder";
 import CartQuantityControl from "./CartQuantityControl";
 
 interface CartItemProps {
@@ -52,8 +53,9 @@ function CartItem({ item }: CartItemProps) {
     >
       <Link to={"/products/" + item.productId}>
         <img
-          src={item.imageUrl}
+          src={item.imageUrl || PLACEHOLDER_IMAGE}
           alt={item.name}
+          onError={handleImageError}
           style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8 }}
         />
       </Link>

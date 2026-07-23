@@ -19,16 +19,10 @@ export interface SignUpInput {
   role: UserRole;
 }
 
-/** The values collected by the Sign In form. */
+/** The values collected by the Sign In form. The backend logs in by username. */
 export interface SignInInput {
-  email: string;
+  username: string;
   password: string;
-}
-
-/** The values collected by the Update Password form. */
-export interface UpdatePasswordInput {
-  currentPassword: string;
-  newPassword: string;
 }
 
 /** The user account plus login token returned after sign in or sign up. */
