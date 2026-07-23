@@ -2,7 +2,7 @@
 
 import { configureStore } from "@reduxjs/toolkit";
 import authReducer, { AUTH_STORAGE_KEY } from "../features/auth/authSlice";
-import cartReducer, { saveCartForUser } from "../features/cart/cartSlice";
+import cartReducer from "../features/cart/cartSlice";
 import { saveToStorage } from "../utils/storage";
 
 export const store = configureStore({
@@ -12,7 +12,9 @@ export const store = configureStore({
   },
 });
 
-// Persist auth and cart to localStorage after every state change.
+// Persist the auth (user + token) to localStorage after every state change so a
+// refresh keeps the user signed in. The cart is stored on the backend now, so it
+// is not persisted here.
 store.subscribe(function () {
   const state = store.getState();
 
@@ -21,11 +23,6 @@ store.subscribe(function () {
     user: state.auth.user,
     token: state.auth.token,
   });
-
-  // Cart is saved per user id; guests get no saved cart.
-  if (state.auth.user !== null) {
-    saveCartForUser(state.auth.user.id, state.cart);
-  }
 });
 
 // Types derived from the store so they always match its real shape.

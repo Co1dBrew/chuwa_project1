@@ -9,7 +9,7 @@ import { useAppDispatch, useAppSelector } from "../app/hooks";
 import { clearAuthError, signUpThunk } from "../features/auth/authSlice";
 import {
   selectAuthError,
-  selectAuthStatus,
+  selectAuthLoading,
   selectIsAuthenticated,
 } from "../features/auth/authSelectors";
 
@@ -17,7 +17,7 @@ function SignUpPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
-  const status = useAppSelector(selectAuthStatus);
+  const loading = useAppSelector(selectAuthLoading);
   const error = useAppSelector(selectAuthError);
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
 
@@ -40,6 +40,7 @@ function SignUpPage() {
       role: values.role ?? "user",
     };
 
+    // (The cart is loaded by App once the user is signed in.)
     dispatch(signUpThunk(input))
       .unwrap()
       .then(function () {
@@ -55,7 +56,7 @@ function SignUpPage() {
     <AuthForm
       mode="signup"
       title="Create your account"
-      loading={status === "loading"}
+      loading={loading}
       error={error}
       onSubmit={handleSubmit}
       footer={

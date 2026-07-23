@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import MainLayout from "../components/layout/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
 import AdminRoute from "./AdminRoute";
+import CustomerRoute from "./CustomerRoute";
 import ProductListPage from "../pages/ProductListPage";
 import ProductDetailPage from "../pages/ProductDetailPage";
 import ProductFormPage from "../pages/ProductFormPage";
@@ -45,9 +46,9 @@ function AppRoutes() {
         <Route
           path="cart"
           element={
-            <ProtectedRoute>
+            <CustomerRoute>
               <CartPage />
-            </ProtectedRoute>
+            </CustomerRoute>
           }
         />
 

@@ -1,54 +1,22 @@
-// Renders AuthForm in "updatePassword" mode, wired to the update-password thunk.
+// Renders AuthForm in "updatePassword" mode. The backend has no password-change
+// endpoint yet, so this page is kept for the demo but simply informs the user
+// that the feature is not available instead of calling the backend.
 
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { message } from "antd";
 import AuthForm from "../components/auth/AuthForm";
 import type { AuthFormValues } from "../components/auth/AuthForm";
-import { useAppDispatch, useAppSelector } from "../app/hooks";
-import { clearAuthError, updatePasswordThunk } from "../features/auth/authSlice";
-import {
-  selectAuthError,
-  selectAuthStatus,
-} from "../features/auth/authSelectors";
 
 function UpdatePasswordPage() {
-  const dispatch = useAppDispatch();
-  const navigate = useNavigate();
-
-  const status = useAppSelector(selectAuthStatus);
-  const error = useAppSelector(selectAuthError);
-
-  useEffect(
-    function () {
-      dispatch(clearAuthError());
-    },
-    [dispatch],
-  );
-
-  function handleSubmit(values: AuthFormValues) {
-    const input = {
-      currentPassword: values.currentPassword ?? "",
-      newPassword: values.newPassword ?? "",
-    };
-
-    dispatch(updatePasswordThunk(input))
-      .unwrap()
-      .then(function () {
-        message.success("Your password has been updated.");
-        navigate("/products");
-      })
-      .catch(function () {
-        // The error is shown by AuthForm.
-      });
+  function handleSubmit(_values: AuthFormValues) {
+    message.info("Password change is not available yet.");
   }
 
   return (
     <AuthForm
       mode="updatePassword"
       title="Update password"
-      loading={status === "loading"}
-      error={error}
+      loading={false}
+      error={null}
       onSubmit={handleSubmit}
     />
   );

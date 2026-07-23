@@ -30,9 +30,10 @@ interface AuthFormProps {
 }
 
 function AuthForm({ mode, onSubmit, loading, error, title, footer }: AuthFormProps) {
-  // Which fields this mode should display.
-  const showUsername = mode === "signup";
-  const showEmail = mode === "signin" || mode === "signup";
+  // Which fields this mode should display. The backend logs in by username, so
+  // sign in collects a username (not an email); email is only for sign up.
+  const showUsername = mode === "signin" || mode === "signup";
+  const showEmail = mode === "signup";
   const showPassword = mode === "signin" || mode === "signup";
   const showCurrentPassword = mode === "updatePassword";
   const showNewPassword = mode === "updatePassword";
@@ -50,6 +51,17 @@ function AuthForm({ mode, onSubmit, loading, error, title, footer }: AuthFormPro
     passwordRules.push({
       min: MIN_PASSWORD_LENGTH,
       message: "Password must be at least " + MIN_PASSWORD_LENGTH + " characters.",
+    });
+  }
+
+  // Sign up enforces the backend's username format (3–20 letters/digits).
+  const usernameRules: NonNullable<FormItemProps["rules"]> = [
+    { required: true, message: "Please enter a username." },
+  ];
+  if (mode === "signup") {
+    usernameRules.push({
+      pattern: /^[A-Za-z0-9]{3,20}$/,
+      message: "Username must be 3–20 letters or digits.",
     });
   }
 
@@ -82,12 +94,8 @@ function AuthForm({ mode, onSubmit, loading, error, title, footer }: AuthFormPro
 
       <Form layout="vertical" onFinish={handleFinish} requiredMark={false}>
         {showUsername ? (
-          <Form.Item
-            label="Username"
-            name="username"
-            rules={[{ required: true, message: "Please enter a username." }]}
-          >
-            <Input placeholder="Your name" autoComplete="username" />
+          <Form.Item label="Username" name="username" rules={usernameRules}>
+            <Input placeholder="Your username" autoComplete="username" />
           </Form.Item>
         ) : null}
 

@@ -17,9 +17,9 @@ export function selectIsAdmin(state: RootState): boolean {
   return state.auth.user !== null && state.auth.user.role === "admin";
 }
 
-/** The status of the current auth request (idle / loading / succeeded / failed). */
-export function selectAuthStatus(state: RootState) {
-  return state.auth.status;
+/** True while an auth request (sign in / sign up) is in flight. */
+export function selectAuthLoading(state: RootState): boolean {
+  return state.auth.loading;
 }
 
 /** The latest auth error message, or null if there is none. */

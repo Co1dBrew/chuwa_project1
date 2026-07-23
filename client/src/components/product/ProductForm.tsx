@@ -1,14 +1,55 @@
 // Shared form for both creating and editing a product.
 // Price/stock are validated (not clamped) so negative input shows an error.
 
-import { Button, Form, Input, InputNumber, Select } from "antd";
+import { useEffect, useState } from "react";
+import { Button, Form, Input, InputNumber, Select, Upload, message } from "antd";
+import type { UploadFile } from "antd";
+import { UploadOutlined } from "@ant-design/icons";
 import type { ProductFormValues } from "../../utils/productMapper";
-import { PRODUCT_CATEGORIES } from "../../mocks/products";
+import { getCategories } from "../../services/categoryService";
 import { isNonNegativeNumber } from "../../utils/validation";
+
+// The raw values AntD collects. Same as ProductFormValues, except the photo
+// arrives from the Upload component as a file list under "image".
+interface RawProductFormValues {
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  category: string;
+  sku: string;
+  image?: UploadFile[];
+}
+
+// AntD passes either an array or an event object; normalize to a file list.
+function normalizeUploadEvent(event: unknown): UploadFile[] {
+  if (Array.isArray(event)) {
+    return event;
+  }
+  const withFileList = event as { fileList?: UploadFile[] };
+  return withFileList.fileList ?? [];
+}
+
+// Validate the chosen image and stop AntD from auto-uploading it (we upload it
+// ourselves when the form is submitted).
+function beforeImageUpload(file: File) {
+  const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+  if (!allowedTypes.includes(file.type)) {
+    message.error("Only JPG, PNG or WebP images are allowed.");
+    return Upload.LIST_IGNORE;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    message.error("Image must be 5 MB or smaller.");
+    return Upload.LIST_IGNORE;
+  }
+  return false;
+}
 
 interface ProductFormProps {
   /** Values to prefill (edit mode). Leave undefined for a blank create form. */
   initialValues?: ProductFormValues;
+  /** The product's existing photo URL, shown in edit mode. */
+  currentImageUrl?: string;
   onSubmit: (values: ProductFormValues) => void;
   loading: boolean;
   submitText: string;
@@ -16,16 +57,47 @@ interface ProductFormProps {
 
 function ProductForm({
   initialValues,
+  currentImageUrl,
   onSubmit,
   loading,
   submitText,
 }: ProductFormProps) {
-  const categoryOptions = PRODUCT_CATEGORIES.map(function (category) {
-    return { label: category, value: category };
-  });
+  // Edit mode prefills values; create mode starts blank.
+  const isEditMode = initialValues !== undefined;
+  // Category choices for the dropdown, loaded once from the backend.
+  const [categoryOptions, setCategoryOptions] = useState<
+    { label: string; value: string }[]
+  >([]);
 
-  function handleFinish(values: ProductFormValues) {
-    onSubmit(values);
+  useEffect(function () {
+    getCategories()
+      .then(function (categories) {
+        setCategoryOptions(
+          categories.map(function (category) {
+            return { label: category.name, value: category.name };
+          }),
+        );
+      })
+      .catch(function () {
+        // If categories fail to load, the dropdown just stays empty.
+      });
+  }, []);
+
+  function handleFinish(values: RawProductFormValues) {
+    // Pull the actual File out of the Upload component's file list (if any).
+    const fileList = values.image ?? [];
+    const imageFile =
+      fileList.length > 0 ? (fileList[0].originFileObj ?? null) : null;
+
+    onSubmit({
+      name: values.name,
+      description: values.description,
+      price: values.price,
+      stock: values.stock,
+      category: values.category,
+      sku: values.sku,
+      imageFile: imageFile,
+    });
   }
 
   return (
@@ -102,20 +174,35 @@ function ProductForm({
       </Form.Item>
 
       <Form.Item
-        label="Rating (0 to 5)"
-        name="rating"
-        rules={[{ required: true, message: "Please enter a rating." }]}
+        label="Photo"
+        name="image"
+        valuePropName="fileList"
+        getValueFromEvent={normalizeUploadEvent}
+        extra={
+          isEditMode
+            ? "Optional. Leave empty to keep the current photo."
+            : "Optional. JPG, PNG or WebP, up to 5 MB."
+        }
       >
-        <InputNumber min={0} max={5} step={0.1} style={{ width: "100%" }} placeholder="4.5" />
+        <Upload
+          beforeUpload={beforeImageUpload}
+          maxCount={1}
+          listType="picture"
+          accept="image/png,image/jpeg,image/webp"
+        >
+          <Button icon={<UploadOutlined />}>Select photo</Button>
+        </Upload>
       </Form.Item>
 
-      <Form.Item
-        label="Image URL"
-        name="imageUrl"
-        rules={[{ required: true, message: "Please enter an image URL." }]}
-      >
-        <Input placeholder="https://..." />
-      </Form.Item>
+      {isEditMode && currentImageUrl ? (
+        <Form.Item label="Current photo">
+          <img
+            src={currentImageUrl}
+            alt="Current product"
+            style={{ maxWidth: 160, borderRadius: 8 }}
+          />
+        </Form.Item>
+      ) : null}
 
       <Form.Item
         label="Category"

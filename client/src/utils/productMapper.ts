@@ -6,45 +6,57 @@ import type { CartItem } from "../types/cart";
 import { centsToDollars, dollarsToCents } from "./currency";
 
 // Map a raw backend ApiProduct (snake_case) into the app's internal Product shape.
-// Both the mock and future real HTTP services call this, so the rest of the app
-// never sees the backend shape.
-export function mapApiProductToProduct(apiProduct: ApiProduct): Product {
+// The product service calls this on every response so the rest of the app never
+// sees the backend shape. The backend stores the category as a numeric id, so we
+// pass in a "category id -> name" lookup to fill in the readable category name.
+export function mapApiProductToProduct(
+  apiProduct: ApiProduct,
+  categoryNameById: Record<number, string>,
+): Product {
+  const meta = apiProduct.meta;
+
+  // We keep the app's rating and image URL inside the backend's free-form "meta".
+  const rating = Number(meta.rating ?? 0);
+  const metaImageUrl = typeof meta.imageUrl === "string" ? meta.imageUrl : null;
+
   return {
-    id: apiProduct.product_id,
+    id: String(apiProduct.product_id),
     name: apiProduct.name,
-    description: apiProduct.description,
+    description: apiProduct.description ?? "",
     sku: apiProduct.sku,
-    category: apiProduct.category,
-    // price_amount is a string of cents, e.g. "1975".
-    priceCents: Number(apiProduct.price_amount),
+    category: categoryNameById[apiProduct.category_id] ?? "",
+    // price_amount is already whole cents (a number).
+    priceCents: apiProduct.price_amount,
     stock: apiProduct.inventory,
-    imageUrl: apiProduct.image_url,
-    rating: apiProduct.meta.rating,
+    // Prefer a real uploaded image, then a URL from older data, else empty.
+    imageUrl: apiProduct.image_url ?? metaImageUrl ?? "",
+    rating: Number.isNaN(rating) ? 0 : rating,
   };
 }
 
-// Values shown in the product create/edit form. Unlike Product, price is in dollars.
+// Values shown in the product create/edit form. Unlike Product, price is in
+// dollars and the photo is a File to upload (null when none is chosen).
 export interface ProductFormValues {
   name: string;
   description: string;
   price: number;
   stock: number;
-  imageUrl: string;
+  imageFile: File | null;
   category: string;
-  rating: number;
   sku: string;
 }
 
 // Convert a stored Product into edit-form values (price cents -> dollars).
+// The photo is not prefilled (you cannot put an existing image back into a file
+// picker); the edit page shows the current photo separately instead.
 export function productToFormValues(product: Product): ProductFormValues {
   return {
     name: product.name,
     description: product.description,
     price: centsToDollars(product.priceCents),
     stock: product.stock,
-    imageUrl: product.imageUrl,
+    imageFile: null,
     category: product.category,
-    rating: product.rating,
     sku: product.sku,
   };
 }
@@ -56,9 +68,8 @@ export function formValuesToProductInput(values: ProductFormValues): ProductInpu
     description: values.description,
     priceCents: dollarsToCents(values.price),
     stock: values.stock,
-    imageUrl: values.imageUrl,
+    imageFile: values.imageFile,
     category: values.category,
-    rating: values.rating,
     sku: values.sku,
   };
 }

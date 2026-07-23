@@ -130,6 +130,62 @@ export async function getProducts(
   return result.rows;
 }
 
+export interface ProductListFilters {
+  search?: string;
+  categoryId?: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * List products with optional text search and category filter, using
+ * page/pageSize (offset) pagination. Returns the current page's rows plus the
+ * total number of rows that match the filters (before pagination).
+ */
+export async function listProductsPaged(
+  filters: ProductListFilters,
+): Promise<{ rows: Product[]; total: number }> {
+  const { search, categoryId, page, pageSize } = filters;
+
+  // Build the WHERE clause piece by piece so we only add the filters we need.
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+
+  if (search !== undefined && search.trim() !== "") {
+    values.push(`%${search.trim()}%`);
+    // The same placeholder is reused for both name and description.
+    conditions.push(`(name ILIKE $${values.length} OR description ILIKE $${values.length})`);
+  }
+
+  if (categoryId !== undefined) {
+    values.push(categoryId);
+    conditions.push(`category_id = $${values.length}`);
+  }
+
+  const whereClause =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  // Total count uses the same filters but ignores pagination.
+  const countResult = await pool.query<{ count: string }>(
+    `SELECT COUNT(*) AS count FROM products ${whereClause}`,
+    values,
+  );
+  const total = Number(countResult.rows[0]?.count ?? 0);
+
+  // The current page of rows. LIMIT/OFFSET placeholders come after the filters.
+  const offset = (page - 1) * pageSize;
+  const result = await pool.query<Product>(
+    `SELECT ${PRODUCT_COLUMNS}
+     FROM products
+     ${whereClause}
+     ORDER BY product_id
+     LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+    [...values, pageSize, offset],
+  );
+
+  return { rows: result.rows, total };
+}
+
 export async function createProduct(
   product: CreateProductInput,
 ): Promise<Product> {
@@ -173,6 +229,49 @@ export async function deleteProduct(
      WHERE product_id = $1 AND merchant_id = $2
      RETURNING ${PRODUCT_COLUMNS}`,
     [productId, merchantId],
+  );
+
+  return result.rows[0];
+}
+
+export interface UpdateProductInput {
+  name?: string;
+  description?: string;
+  sku?: string;
+  category_id?: number;
+  price_amount?: number;
+  inventory?: number;
+  meta?: Record<string, unknown>;
+}
+
+/**
+ * Update the given fields of a product the merchant owns. Only the provided
+ * (non-undefined) fields are written. Returns undefined if no product matches
+ * the id AND merchant (i.e. not found or not owned).
+ */
+export async function updateProduct(
+  productId: number,
+  merchantId: number,
+  input: UpdateProductInput,
+): Promise<Product | undefined> {
+  const [columns, values] = toColumnsAndValuesIgnoringUndefined(input);
+
+  // Nothing to change: just return the current product (if owned).
+  if (columns.length === 0) {
+    const existing = await getProductById(productId);
+    return existing && existing.merchant_id === merchantId ? existing : undefined;
+  }
+
+  const setClause = columns
+    .map((column, index) => `${column} = $${index + 1}`)
+    .join(", ");
+
+  const result = await pool.query<Product>(
+    `UPDATE products
+     SET ${setClause}
+     WHERE product_id = $${columns.length + 1} AND merchant_id = $${columns.length + 2}
+     RETURNING ${PRODUCT_COLUMNS}`,
+    [...values, productId, merchantId],
   );
 
   return result.rows[0];

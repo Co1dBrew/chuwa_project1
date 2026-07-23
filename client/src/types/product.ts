@@ -16,34 +16,34 @@ export interface Product {
 }
 
 // ApiProduct: the raw shape returned by the backend API. Differs from Product:
-// snake_case fields, price_amount is a string of cents, "inventory" means
-// stock, and rating lives inside "meta". Convert with mapApiProductToProduct().
+// snake_case fields, IDs and price are numbers, price_amount is in cents,
+// "inventory" means stock, the category is a numeric "category_id" (its name is
+// looked up separately), and rating/imageUrl (if any) live inside "meta".
+// Convert to the app's Product with mapApiProductToProduct().
 
-/** The nested "meta" object inside an ApiProduct. */
-export interface ApiProductMeta {
-  brand: string;
-  specs: {
-    model: string;
-    warranty_months: number;
-  };
-  rating: number;
-  category: string;
-  featured: boolean;
-}
-
-/** One product exactly as the backend database returns it. */
+/** One product exactly as the backend API returns it. */
 export interface ApiProduct {
-  product_id: string;
+  product_id: number;
+  merchant_id: number;
   name: string;
-  description: string;
+  description: string | null;
   sku: string;
-  category: string;
-  /** Price in cents, stored as a STRING. Example: "1975" means $19.75. */
-  price_amount: string;
+  /** Foreign key into the categories table; resolve to a name via GET /categories. */
+  category_id: number;
+  /** Price in whole cents. Example: 1975 means $19.75. */
+  price_amount: number;
   /** Units in stock. The rest of the app calls this "stock". */
   inventory: number;
-  image_url: string;
-  meta: ApiProductMeta;
+  /** A public image URL, or null if the product has no image. */
+  image_url: string | null;
+  /** Free-form JSON. We keep the app's rating and image URL here. */
+  meta: Record<string, unknown>;
+}
+
+/** A product category as returned by GET /categories. */
+export interface Category {
+  id: string;
+  name: string;
 }
 
 /** Data needed to create or update a product (a Product without its id). */
@@ -52,9 +52,9 @@ export interface ProductInput {
   description: string;
   priceCents: number;
   stock: number;
-  imageUrl: string;
+  /** A newly chosen photo file to upload, or null to keep the existing one. */
+  imageFile: File | null;
   category: string;
-  rating: number;
   sku: string;
 }
 

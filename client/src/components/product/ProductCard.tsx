@@ -9,13 +9,14 @@ import {
 } from "@ant-design/icons";
 import type { Product } from "../../types/product";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
-import { addToCart } from "../../features/cart/cartSlice";
+import { addToCartThunk } from "../../features/cart/cartSlice";
 import { selectQuantityForProduct } from "../../features/cart/cartSelectors";
 import {
   selectIsAdmin,
   selectIsAuthenticated,
 } from "../../features/auth/authSelectors";
 import { formatCents } from "../../utils/currency";
+import { PLACEHOLDER_IMAGE, handleImageError } from "../../utils/imagePlaceholder";
 
 interface ProductCardProps {
   product: Product;
@@ -48,8 +49,19 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
       return;
     }
 
-    dispatch(addToCart(product));
-    message.success(product.name + " added to your cart.");
+    // Adding to the cart now calls the backend, so it is asynchronous.
+    dispatch(addToCartThunk(product))
+      .unwrap()
+      .then(function () {
+        message.success(product.name + " added to your cart.");
+      })
+      .catch(function (errorMessage) {
+        message.warning(
+          typeof errorMessage === "string"
+            ? errorMessage
+            : "Could not add to cart.",
+        );
+      });
   }
 
   function handleEdit() {
@@ -66,8 +78,9 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
       cover={
         <Link to={"/products/" + product.id}>
           <img
-            src={product.imageUrl}
+            src={product.imageUrl || PLACEHOLDER_IMAGE}
             alt={product.name}
+            onError={handleImageError}
             style={{ height: 180, width: "100%", objectFit: "cover" }}
           />
         </Link>
@@ -120,15 +133,18 @@ function ProductCard({ product, onRequestDelete }: ProductCardProps) {
       ) : null}
 
       <Space direction="vertical" style={{ width: "100%" }} size="small">
-        <Button
-          type="primary"
-          icon={<ShoppingCartOutlined />}
-          block
-          disabled={isOutOfStock}
-          onClick={handleAddToCart}
-        >
-          Add to cart
-        </Button>
+        {/* The cart is for regular users; admins do not see "Add to cart". */}
+        {!isAdmin ? (
+          <Button
+            type="primary"
+            icon={<ShoppingCartOutlined />}
+            block
+            disabled={isOutOfStock}
+            onClick={handleAddToCart}
+          >
+            Add to cart
+          </Button>
+        ) : null}
 
         {/* Only administrators see the edit and delete buttons. */}
         {isAdmin ? (

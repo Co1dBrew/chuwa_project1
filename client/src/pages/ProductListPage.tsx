@@ -15,7 +15,7 @@ import DeleteProductModal from "../components/product/DeleteProductModal";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import EmptyState from "../components/common/EmptyState";
 import ErrorMessage from "../components/common/ErrorMessage";
-import { PRODUCT_CATEGORIES } from "../mocks/products";
+import { getCategories } from "../services/categoryService";
 
 const PRODUCTS_PER_PAGE = 8;
 
@@ -31,6 +31,9 @@ function ProductListPage() {
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(1);
 
+  // Category names for the filter dropdown, loaded once from the backend.
+  const [categories, setCategories] = useState<string[]>([]);
+
   // Bumping this forces a reload (used after a delete).
   const [refreshCounter, setRefreshCounter] = useState(0);
 
@@ -40,8 +43,6 @@ function ProductListPage() {
   // Reload products whenever the query changes or we ask for a refresh.
   useEffect(
     function () {
-      let isCurrent = true; // guards against setting state after unmount
-
       async function loadProducts() {
         setLoading(true);
         setError(null);
@@ -54,33 +55,38 @@ function ProductListPage() {
             pageSize: PRODUCTS_PER_PAGE,
           });
 
-          if (isCurrent) {
-            setProducts(result.items);
-            setTotal(result.total);
-          }
+          setProducts(result.items);
+          setTotal(result.total);
         } catch (caughtError) {
-          if (isCurrent) {
-            const messageText =
-              caughtError instanceof Error
-                ? caughtError.message
-                : "Could not load products.";
-            setError(messageText);
-          }
+          const messageText =
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Could not load products.";
+          setError(messageText);
         } finally {
-          if (isCurrent) {
-            setLoading(false);
-          }
+          setLoading(false);
         }
       }
 
       loadProducts();
-
-      return function () {
-        isCurrent = false;
-      };
     },
     [search, category, page, refreshCounter],
   );
+
+  // Load the category list once, for the filter dropdown.
+  useEffect(function () {
+    getCategories()
+      .then(function (loaded) {
+        setCategories(
+          loaded.map(function (item) {
+            return item.name;
+          }),
+        );
+      })
+      .catch(function () {
+        // If categories fail to load, the filter just stays empty.
+      });
+  }, []);
 
   function handleSearch(term: string) {
     setSearch(term);
@@ -191,7 +197,7 @@ function ProductListPage() {
       <Space wrap style={{ marginBottom: 24 }}>
         <ProductSearchBar initialValue={search} onSearch={handleSearch} />
         <ProductFilters
-          categories={PRODUCT_CATEGORIES}
+          categories={categories}
           value={category}
           onChange={handleCategoryChange}
         />

@@ -9,7 +9,7 @@ import { useAppDispatch, useAppSelector } from "../app/hooks";
 import { clearAuthError, signInThunk } from "../features/auth/authSlice";
 import {
   selectAuthError,
-  selectAuthStatus,
+  selectAuthLoading,
   selectIsAuthenticated,
 } from "../features/auth/authSelectors";
 
@@ -17,7 +17,7 @@ function SignInPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
-  const status = useAppSelector(selectAuthStatus);
+  const loading = useAppSelector(selectAuthLoading);
   const error = useAppSelector(selectAuthError);
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
 
@@ -35,11 +35,12 @@ function SignInPage() {
 
   function handleSubmit(values: AuthFormValues) {
     const input = {
-      email: values.email ?? "",
+      username: values.username ?? "",
       password: values.password ?? "",
     };
 
     // .unwrap() resolves on success and throws on failure.
+    // (The cart is loaded by App once the user is signed in.)
     dispatch(signInThunk(input))
       .unwrap()
       .then(function () {
@@ -55,7 +56,7 @@ function SignInPage() {
     <AuthForm
       mode="signin"
       title="Sign in"
-      loading={status === "loading"}
+      loading={loading}
       error={error}
       onSubmit={handleSubmit}
       footer={

@@ -63,11 +63,14 @@ function Header() {
       </Link>
 
       <Space size="middle">
-        <Link to="/cart" aria-label="Cart">
-          <Badge count={cartItemCount} size="small">
-            <ShoppingCartOutlined style={{ fontSize: 22, color: "#333" }} />
-          </Badge>
-        </Link>
+        {/* The cart is for regular users only (admins manage products). */}
+        {!isAdmin ? (
+          <Link to="/cart" aria-label="Cart">
+            <Badge count={cartItemCount} size="small">
+              <ShoppingCartOutlined style={{ fontSize: 22, color: "#333" }} />
+            </Badge>
+          </Link>
+        ) : null}
 
         {isAuthenticated ? (
           <Dropdown

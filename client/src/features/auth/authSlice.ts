@@ -1,5 +1,5 @@
 // The authentication slice of the Redux store: the signed-in user, token,
-// request status and error message.
+// a loading flag and an error message.
 
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
@@ -7,10 +7,8 @@ import type {
   AuthResult,
   SignInInput,
   SignUpInput,
-  UpdatePasswordInput,
   User,
 } from "../../types/user";
-import type { RootState } from "../../app/store";
 import * as authService from "../../services/authService";
 import { loadFromStorage } from "../../utils/storage";
 
@@ -21,7 +19,7 @@ export const AUTH_STORAGE_KEY = "pms.auth";
 interface AuthState {
   user: User | null;
   token: string | null;
-  status: "idle" | "loading" | "succeeded" | "failed";
+  loading: boolean;
   error: string | null;
 }
 
@@ -38,7 +36,7 @@ function buildInitialState(): AuthState {
   return {
     user: saved !== null ? saved.user : null,
     token: saved !== null ? saved.token : null,
-    status: "idle",
+    loading: false,
     error: null,
   };
 }
@@ -73,29 +71,6 @@ export const signUpThunk = createAsyncThunk<
   }
 });
 
-/** Change the signed-in user's password. */
-export const updatePasswordThunk = createAsyncThunk<
-  User,
-  UpdatePasswordInput,
-  { state: RootState; rejectValue: string }
->("auth/updatePassword", async function (input, thunkApi) {
-  const state = thunkApi.getState();
-  const currentUser = state.auth.user;
-
-  if (currentUser === null) {
-    return thunkApi.rejectWithValue("You must be signed in to do that.");
-  }
-
-  try {
-    const updatedUser = await authService.updatePassword(currentUser.email, input);
-    return updatedUser;
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Could not update password.";
-    return thunkApi.rejectWithValue(message);
-  }
-});
-
 const authSlice = createSlice({
   name: "auth",
   initialState: buildInitialState(),
@@ -104,7 +79,7 @@ const authSlice = createSlice({
     logout(state) {
       state.user = null;
       state.token = null;
-      state.status = "idle";
+      state.loading = false;
       state.error = null;
     },
     /** Clear any error message. */
@@ -116,55 +91,38 @@ const authSlice = createSlice({
     builder
       // Sign in
       .addCase(signInThunk.pending, function (state) {
-        state.status = "loading";
+        state.loading = true;
         state.error = null;
       })
       .addCase(
         signInThunk.fulfilled,
         function (state, action: PayloadAction<AuthResult>) {
-          state.status = "succeeded";
+          state.loading = false;
           state.user = action.payload.user;
           state.token = action.payload.token;
         },
       )
       .addCase(signInThunk.rejected, function (state, action) {
-        state.status = "failed";
+        state.loading = false;
         state.error = action.payload ?? "Sign in failed.";
       })
 
       // Sign up
       .addCase(signUpThunk.pending, function (state) {
-        state.status = "loading";
+        state.loading = true;
         state.error = null;
       })
       .addCase(
         signUpThunk.fulfilled,
         function (state, action: PayloadAction<AuthResult>) {
-          state.status = "succeeded";
+          state.loading = false;
           state.user = action.payload.user;
           state.token = action.payload.token;
         },
       )
       .addCase(signUpThunk.rejected, function (state, action) {
-        state.status = "failed";
+        state.loading = false;
         state.error = action.payload ?? "Sign up failed.";
-      })
-
-      // Update password
-      .addCase(updatePasswordThunk.pending, function (state) {
-        state.status = "loading";
-        state.error = null;
-      })
-      .addCase(
-        updatePasswordThunk.fulfilled,
-        function (state, action: PayloadAction<User>) {
-          state.status = "succeeded";
-          state.user = action.payload;
-        },
-      )
-      .addCase(updatePasswordThunk.rejected, function (state, action) {
-        state.status = "failed";
-        state.error = action.payload ?? "Could not update password.";
       });
   },
 });
