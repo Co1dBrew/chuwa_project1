@@ -1,7 +1,7 @@
 // Lists products with search, category filter, and pagination.
 
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button, Pagination, Space, message } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import type { Product } from "../types/product";
@@ -27,9 +27,12 @@ function ProductListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("");
-  const [page, setPage] = useState(1);
+  // Search / category / page live in the URL query string, so the address bar
+  // reflects the current page and the link is shareable and refresh-safe.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get("search") ?? "";
+  const category = searchParams.get("category") ?? "";
+  const page = Number(searchParams.get("page")) || 1;
 
   // Category names for the filter dropdown, loaded once from the backend.
   const [categories, setCategories] = useState<string[]>([]);
@@ -88,14 +91,46 @@ function ProductListPage() {
       });
   }, []);
 
+  // Write the query params, omitting defaults so the URL stays clean
+  // (no "?page=1", no empty search / category).
+  function updateParams(changes: {
+    search?: string;
+    category?: string;
+    page?: number;
+  }) {
+    const next = new URLSearchParams(searchParams);
+
+    if ("search" in changes) {
+      if (changes.search) {
+        next.set("search", changes.search);
+      } else {
+        next.delete("search");
+      }
+    }
+    if ("category" in changes) {
+      if (changes.category) {
+        next.set("category", changes.category);
+      } else {
+        next.delete("category");
+      }
+    }
+    if ("page" in changes) {
+      if (changes.page && changes.page > 1) {
+        next.set("page", String(changes.page));
+      } else {
+        next.delete("page");
+      }
+    }
+
+    setSearchParams(next);
+  }
+
   function handleSearch(term: string) {
-    setSearch(term);
-    setPage(1); // a new search should start from the first page
+    updateParams({ search: term, page: 1 }); // a new search starts from page 1
   }
 
   function handleCategoryChange(newCategory: string) {
-    setCategory(newCategory);
-    setPage(1);
+    updateParams({ category: newCategory, page: 1 });
   }
 
   function handleRetry() {
@@ -124,7 +159,7 @@ function ProductListPage() {
 
       // If we deleted the last item on a non-first page, step back one page.
       if (products.length === 1 && page > 1) {
-        setPage(page - 1);
+        updateParams({ page: page - 1 });
       } else {
         handleRetry();
       }
@@ -162,7 +197,7 @@ function ProductListPage() {
             pageSize={PRODUCTS_PER_PAGE}
             showSizeChanger={false}
             onChange={function (newPage) {
-              setPage(newPage);
+              updateParams({ page: newPage });
             }}
           />
         </div>
